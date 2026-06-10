@@ -1,0 +1,648 @@
+{
+  "name": "My workflow 2",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "bluesky",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -1072,
+        -96
+      ],
+      "id": "51bff714-1d99-45f5-8949-63cacb763358",
+      "name": "Webhook",
+      "webhookId": "277d2a82-6b6a-466f-87da-dda6d322081f"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.1-flash-lite",
+        "options": {
+          "temperature": 0.2
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        -432,
+        784
+      ],
+      "id": "4bc779ab-9806-40ab-92db-761a527e5427",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "XP9AvYKOBIPdFhKQ",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1040,
+        80
+      ],
+      "id": "ae31733b-104c-4973-b3bb-d1bde4d01d1b",
+      "name": "No Operation, do nothing"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://bsky.social/xrpc/com.atproto.server.createSession",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"identifier\": \"rondogal.bsky.social\",\n  \"password\": \"svdu-hyoy-6qwi-gxfl\" \n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1104,
+        -560
+      ],
+      "id": "212d0ef2-8d1b-40d9-9b98-147d12817831",
+      "name": "Bluesky-Authenticator"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://bsky.social/xrpc/com.atproto.repo.createRecord",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.accessJwt }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"repo\": \"{{ $json.did }}\",\n  \"collection\": \"app.bsky.feed.post\",\n  \"record\": {\n    \"$type\": \"app.bsky.feed.post\",\n    \"text\": \"{{ $('Parse AI Output').item.json.reply_hook }}\",\n    \"createdAt\": \"{{ new Date().toISOString() }}\",\n    \"reply\": {\n      \"root\": {\n        \"uri\": \"{{ $('Webhook').item.json.body.uri }}\",\n        \"cid\": \"{{ $('Webhook').item.json.body.cid }}\"\n      },\n      \"parent\": {\n        \"uri\": \"{{ $('Webhook').item.json.body.uri }}\",\n        \"cid\": \"{{ $('Webhook').item.json.body.cid }}\"\n      }\n    }\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1344,
+        -560
+      ],
+      "id": "7bb171f6-a014-4694-a83e-7f39dd6ccd52",
+      "name": "BlueSky AutoReply"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "12OB2WsNB0quvZbi4ODtFHmbs8ZepAgsyrK1oFf0F8Q4",
+          "mode": "list",
+          "cachedResultName": "Untitled spreadsheet",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/12OB2WsNB0quvZbi4ODtFHmbs8ZepAgsyrK1oFf0F8Q4/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/12OB2WsNB0quvZbi4ODtFHmbs8ZepAgsyrK1oFf0F8Q4/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "author_did": "={{ $('Webhook').item.json.body.author_did }}",
+            "handle": "={{ $('Webhook').item.json.body.post_url }}",
+            "original_text": "={{ $('Webhook').item.json.body.text }}",
+            "ai_reply": "={{ $('Parse AI Output').item.json.reply_hook }}",
+            "last_replied_at": "={{ new Date().toISOString() }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "author_did",
+              "displayName": "author_did",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "handle",
+              "displayName": "handle",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "last_replied_at",
+              "displayName": "last_replied_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "original_text",
+              "displayName": "original_text",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "ai_reply",
+              "displayName": "ai_reply",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1280,
+        -112
+      ],
+      "id": "e9df459e-cf2d-4f6d-89c3-40abebd2bcd5",
+      "name": "Append row in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "q8xTHfKugl2MIXum",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Lightweight, self-contained AFINN-based Sentiment Analyzer\nconst positiveWords = new Set(['help', 'expert', 'love', 'good', 'great', 'awesome', 'fix', 'recommend', 'need', 'looking', 'hire', 'setup', 'build', 'perfect', 'solved']);\nconst negativeWords = new Set(['broke', 'broken', 'hate', 'error', 'fail', 'failed', 'issue', 'bug', 'expensive', 'costly', 'overage', 'stuck', 'slow', 'worst', 'brutal', 'charge', 'wrong']);\n\nfor (const item of $input.all()) {\n  const text = (item.json.body?.text || \"\").toLowerCase();\n  const words = text.replace(/[.,\\/#!$%\\^&\\*;:{}=\\-_`~()]/g, \"\").split(/\\s+/);\n  \n  let score = 0;\n  for (const word of words) {\n    if (positiveWords.has(word)) score += 1;\n    if (negativeWords.has(word)) score -= 1.5; // Weight complaints higher for sales intent\n  }\n  \n  let classification = \"Neutral\";\n  if (score > 0) classification = \"Positive/Inquiry\";\n  if (score < 0) classification = \"Frustrated/Pain Point\";\n  \n  item.json.analysis = {\n    sentiment_score: score,\n    sentiment_label: classification\n  };\n}\n\nreturn $input.all();"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -864,
+        -96
+      ],
+      "id": "31c32236-5f8d-4321-95e5-30225e5714f6",
+      "name": "Sentiment Analyzer"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.matched_bot }}",
+                    "rightValue": "ai_bot",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "8420b9a9-9e5e-47cd-b476-22196d370810"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "ai bot"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "f0e9fcd0-522e-4e0d-883b-e164b3623879",
+                    "leftValue": "={{ $json.body.matched_bot }}",
+                    "rightValue": "ghl_bot",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "ghl bot"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "6c36116f-52ec-4446-a8d4-6579800c2043",
+                    "leftValue": "{{ $json.body.matched_bot }}",
+                    "rightValue": "n8n_bot",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "n8n bot"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "683a95b1-21e1-41a5-a77b-eb807a65725c",
+                    "leftValue": "={{ $json.body.matched_bot }}",
+                    "rightValue": "=business_pain_bot",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        -672,
+        -128
+      ],
+      "id": "c491f32a-4c2d-4bf0-ba77-10f80c0721bf",
+      "name": "Route by Bot Persona"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Analyze this post: {{ $json.body.text }}",
+        "options": {
+          "systemMessage": "You are an expert B2B SaaS, Marketing, and Automation Consultant. Your job is to monitor social media posts for business owners, marketers, real estate agents, or founders complaining about manual bottlenecks, marketing tracking issues, or software inefficiencies.\n\nAnalyze the text and determine if their problem can be solved using:\n1. GoHighLevel (GHL): For CRM, lead follow-up delays, reputation/review management, real estate pipelines, missed calls, SMS/email marketing issues.\n2. n8n: For manual data entry, syncing data between disjointed software, webhook issues, or broken app-to-app workflows.\n3. Custom Coding (Python/JS): For web scraping, custom apps, or complex software features.\n\nYou must return ONLY a raw JSON object matching this schema. Do not include markdown code fences or backticks:\n{\n  \"is_lead\": boolean,\n  \"intent\": \"marketing_bottleneck\" | \"manual_process_pain\" | \"lead_followup_issue\" | \"custom_software_need\" | \"general_spam\" | \"hiring_developer\" | \"freelance_gig\" | \"technical_problem\" | \"business_problem\",\n  \"confidence\": float,\n  \"stack\": [\"GHL\" and/or \"n8n\" and/or \"Custom Code\"],\n  \"pain_point\": \"Brief summary of the business problem they are facing\",\n  \"solution_angle\": \"A 1-sentence explanation of exactly how GHL, n8n, or coding can solve this specific problem for them\",\n\"reply_hook\": \"A short, casual, human-sounding social media reply under 280 characters targeting the user. Your reply MUST be brief, high-impact, and strictly under 250 - 300 characters.\"\n}\n\nCRITICAL RULES FOR GENERATING THE 'reply_hook':\n1. NEVER do a direct pitch. Do not mention your services, your agency, or tell them to \"DM me\". Don't add \"—\" to the reply.\n2. Sound like a helpful peer on a forum, not a salesperson. Use casual lowercase contractions (e.g., \"don't\", \"it's\", \"y'all\"). No corporate jargon.\n3. Use the \"Reframe + Mechanism\" framework: Validate their frustration, then point out the *hidden underlying technical reason* causing it (e.g., API limits, missing webhook handshakes, database desyncs).\n4. End with a zero-friction, casual question or an open loop that naturally invites them to reply to you but this isn't always compulsory to for there to be an open loop. it van just bea normal reply without open loop questions\n5. NO emojis, NO hashtags, and NO robotic greetings (like \"Hey there!\").\n\nSet \"is_lead\" to true ONLY if they are describing a problem that one of those three tools can realistically solve."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -400,
+        -112
+      ],
+      "id": "818ffef6-3cdd-4616-b63c-0a85249d4e08",
+      "name": "AI Intent Evaluator"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={{ JSON.parse($json.output) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -80,
+        -112
+      ],
+      "id": "0f50c56d-5fd6-408e-8666-73da8f0d6748",
+      "name": "Parse AI Output"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "d3fd151d-87ce-4b64-b515-9ce82c79d057",
+              "leftValue": "={{ $json.is_lead }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "319dab6a-d7fa-4a76-b2d2-1eebcdeb12ce",
+              "leftValue": "={{ $json.confidence }}",
+              "rightValue": 0.85,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            },
+            {
+              "id": "212a56e9-8678-4d99-ab56-a01063cd284e",
+              "leftValue": "={{ $('Sentiment Analyzer').item.json.analysis.sentiment_score }}",
+              "rightValue": -1,
+              "operator": {
+                "type": "number",
+                "operation": "lt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        656,
+        -112
+      ],
+      "id": "37b28c1e-8f00-4848-899f-3f328e5e906f",
+      "name": "Filter High-Intent Leads"
+    },
+    {
+      "parameters": {
+        "chatId": "5327289889",
+        "text": "=🔥 *AUTOMATED LEAD CAPTURED*\n---\n🤖 *Tech Stack:* {{ $json.solution_angle || \"Not Available\" }}\n🎯 *AI Confidence:* {{ $json.confidence * 100 }}%\n\n📥 *Prospect's Pain Point:*\n\"{{ $json.pain_point }}\"\n\n🚀 *Bot's Sent Reply:*\n\"{{ $json.reply_hook }}\"\n\n🔗 *Jump into the Thread:*\nhttps://bsky.app/profile/{{ $('Webhook').item.json.body.post_url }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1264,
+        -336
+      ],
+      "id": "57dd4695-94f5-4a08-b56b-fa6158385cf0",
+      "name": "Telegram Live Alert",
+      "webhookId": "dbd36b75-5268-4868-9f11-b41eafb6165f",
+      "credentials": {
+        "telegramApi": {
+          "id": "ZTsBSvVLTHAn2xg8",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "ca9ad4ff-ffa1-4f50-a28c-c403e2a34c58",
+              "leftValue": "",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        384,
+        -288
+      ],
+      "id": "4090b9f5-6a67-4827-88fb-1604486145a7",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-5-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        -400,
+        80
+      ],
+      "id": "81abcef1-bb6c-40c6-b47f-f4a741088eda",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "C00DjJtibcw5Di1s",
+          "name": "OpenAi account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Sentiment Analyzer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        []
+      ]
+    },
+    "Bluesky-Authenticator": {
+      "main": [
+        [
+          {
+            "node": "BlueSky AutoReply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sentiment Analyzer": {
+      "main": [
+        [
+          {
+            "node": "Route by Bot Persona",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Bot Persona": {
+      "main": [
+        [
+          {
+            "node": "AI Intent Evaluator",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI Intent Evaluator",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI Intent Evaluator",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI Intent Evaluator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Intent Evaluator": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Output": {
+      "main": [
+        [
+          {
+            "node": "Filter High-Intent Leads",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter High-Intent Leads": {
+      "main": [
+        [
+          {
+            "node": "Bluesky-Authenticator",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Telegram Live Alert",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Operation, do nothing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Live Alert": {
+      "main": [
+        []
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Intent Evaluator",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "timeSavedMode": "fixed",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "versionId": "d497934f-27e4-4650-8f81-37bd322a99ba",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "ff7863c0fa9b0c836136c367cfaa45a3744f8d08d347b4b0f4d9991a6cbad761"
+  },
+  "id": "sz8npeSHhglxYq77",
+  "tags": []
+}
