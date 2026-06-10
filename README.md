@@ -1,10 +1,25 @@
-# Autonomous AI Property Booking Agent (n8n Workflow)
+# Enterprise Automation & Autonomous AI Agent Playbooks
 
-An advanced, production-ready n8n workflow designed for luxury holiday rental property management. This system automatically intercepts incoming email inquiries, processes them via an intelligent AI Agent, cross-references database states, and drafts precise email responses.
+A curated collection of production-ready, high-ROI n8n automation blueprints designed to streamline operations, capture high-intent leads, and scale business workflows autonomously.
 
-## Key Automation Features
-* **IMAP Email Trigger:** Automatically listens to and captures incoming guest and B2B agent inquiries in real-time.
-* **AI Classification (Anthropic Claude 4.5 Sonnet):** Extracts unstructured email details into a structured data schema (intent, property name, guest counts, and dates).
-* **Dynamic Calendar & Rules Check:** Fetches live availability via HTTP iCal integration and enforces strict seasonal minimum-stay booking logic.
-* **Automated Pricing Engine:** Loops through night-by-night seasonal rates stored in Google Sheets to calculate exact totals and breakdowns.
-* **Smart Response Generation:** Auto-substitutes customer tokens into multi-lingual templates and surfaces complete drafts directly to the user's dashboard.
+---
+
+## 1. Autonomous AI Property Booking Agent
+Designed for luxury holiday rental property management to intercept incoming inquiries, check real-time availability, and draft human-like responses.
+
+### Key Features
+* **IMAP Email Trigger:** Captures incoming guest and B2B agent inquiries in real-time.
+* **AI Classification (Anthropic Claude):** Extracts unstructured email details into structured data schemas.
+* **Dynamic Calendar Logic:** Fetches live availability via HTTP iCal integration and enforces seasonal rules.
+* **Automated Pricing Engine:** Loops through night-by-night seasonal rates to calculate exact totals.
+
+---
+
+## 2. Social Media Lead Gen & Autonomous Outreach Agent
+An autonomous social monitoring and outreach engine built to scrape live webhooks, analyze buyer pain points, and deploy immediate authoritative responses.
+
+### Key Features
+* **Real-Time Sentiment Analysis:** Uses an inline JavaScript AFINN engine to score and prioritize high-intent customer complaints instantly.
+* **Consultative AI Persona (OpenAI GPT):** Generates high-impact, peer-to-peer responses under 280 characters without sales-pitch jargon.
+* **Multi-Channel Pipeline:** Synchronizes captured prospect data directly to Google Sheets databases.
+* **Instant Mobility Routing:** Deploys real-time Telegram notifications to mobile devices the millisecond a hot lead is processed.
