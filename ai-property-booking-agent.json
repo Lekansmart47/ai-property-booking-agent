@@ -1,0 +1,2822 @@
+{
+  "name": "My workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "format": "resolved",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.emailReadImap",
+      "typeVersion": 2.1,
+      "position": [
+        -1264,
+        -336
+      ],
+      "id": "fc33235e-69da-4f7c-bce7-638834274b21",
+      "name": "Email Trigger (IMAP)",
+      "credentials": {
+        "imap": {
+          "id": "5VRBIo7MSI9bzSq9",
+          "name": "IMAP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "2e31b646-66e0-4c1f-a70b-0a5b9b6a7f6f",
+              "name": "subject",
+              "value": "={{ $json.subject }}",
+              "type": "string"
+            },
+            {
+              "id": "63580e3a-22f5-4ab7-847b-62af4a3a926f",
+              "name": "from_emailaddress",
+              "value": "={{ $json.from.match(/<(.+?)>/)?.[1]}}",
+              "type": "string"
+            },
+            {
+              "id": "a6a2debb-2390-4027-ba59-2e4d7ba65212",
+              "name": "bodyPreview",
+              "value": "={{ $json.textPlain }}",
+              "type": "string"
+            },
+            {
+              "id": "cadd52a6-595d-449a-9ac1-3a5df02e7961",
+              "name": "bodyHtml",
+              "value": "={{ $json.textHtml }}",
+              "type": "string"
+            },
+            {
+              "id": "d51cd8c5-c25e-4f65-be79-6fa97c96440b",
+              "name": "internetMessageId",
+              "value": "={{ $json.metadata['message-id'] }}",
+              "type": "string"
+            },
+            {
+              "id": "1c3fda80-fe61-4d13-a06a-391aac2ac538",
+              "name": "conversationId",
+              "value": "={{ $json.attributes.uid }}",
+              "type": "number"
+            },
+            {
+              "id": "d4f9ca6f-3552-4249-ac1e-3110d1c0d756",
+              "name": "fromName",
+              "value": "={{ $json.from.split('<')[0].trim().replace(/\"/g, '') }}",
+              "type": "string"
+            },
+            {
+              "id": "388fb1a4-cd8b-4f6d-b335-ec2e1bcdd9b5",
+              "name": "to",
+              "value": "={{ $json.to }}",
+              "type": "string"
+            },
+            {
+              "id": "ab704940-c135-41ad-a210-6a9ecfdd556e",
+              "name": "references",
+              "value": "={{ $json.metadata.references}}",
+              "type": "string"
+            },
+            {
+              "id": "9bce6677-576f-4938-ae51-11befa99bcae",
+              "name": "receivedDate",
+              "value": "={{ $json.date }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1056,
+        -336
+      ],
+      "id": "80f3b8cc-2455-498c-92bd-ccea6cccac83",
+      "name": "Normalize Email"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Subject: {{ $('Normalize Email').item.json.subject}}\n\nFrom: {{ $('Normalize Email').item.json.fromName }} <{{ $('Normalize Email').item.json.from_emailaddress }}>\n\nBody: {{ $('Normalize Email').item.json.bodyPreview }}",
+        "options": {
+          "systemMessage": "You are an intake agent for a luxury holiday rental property manager based in Spain. Today's date is {{ $now.toISO() }}.\n\nYou handle inquiries for three properties:\n1. The G Residence (LOCATION RENTAL ONLY — not available for overnight holiday stays. Photo shoots, video shoots, events only.)\n2. Villa Colibrí (overnight rentals + events)\n3. Finca Cielo Azul (overnight rentals + events)\n\nInquiries often come from B2B agents on behalf of clients. The \"official rate\" mentioned in agent emails already includes their commission.\n\nReturn ONLY valid JSON in this exact schema. No prose, no markdown fences:\n\n{\n  \"is_inquiry\": boolean,\n  \"intent\": \"holiday_stay\" | \"photo_shoot\" | \"video_shoot\" | \"event_rental\" | \"mixed\" | \"general_question\" | \"confirmation\" | \"modification\" | \"not_an_inquiry\",\n  \"property_name\": string | null,\n  \"check_in\": \"YYYY-MM-DD\" | null,\n  \"check_out\": \"YYYY-MM-DD\" | null,\n  \"nights\": integer | null,\n  \"check_in_dow\": \"Mon\"|\"Tue\"|\"Wed\"|\"Thu\"|\"Fri\"|\"Sat\"|\"Sun\" | null,\n  \"check_out_dow\": \"Mon\"|\"Tue\"|\"Wed\"|\"Thu\"|\"Fri\"|\"Sat\"|\"Sun\" | null,\n  \"guests\": integer | null,\n  \"is_b2b_agent\": boolean,\n  \"client_quoted_rate\": number | null,\n  \"asked_for_services\": boolean,\n  \"asked_for_payment_terms\": boolean,\n  \"asked_for_full_details\": boolean,\n  \"questions_in_email\": [string],\n  \"language\": \"en\" | \"fr\" | \"de\" | \"it\" | \"es\" | \"other\",\n  \"confidence\": \"high\" | \"medium\" | \"low\",\n  \"missing_fields\": [string],\n  \"notes\": string\n}\n\nEXTRACTION RULES:\n- Dates in DD/MM/YYYY format are European (5/8/2026 = August 5, 2026, NOT May 8).\n- \"August 5-12\" without a year means the next upcoming occurrence relative to today.\n- nights = (check_out - check_in) in days. Same-day = 0 nights = event/shoot, never holiday_stay.\n- check_in_dow / check_out_dow: compute from the dates if both are known.\n\nINTENT RULES:\n- \"photo_shoot\", \"video_shoot\", \"event_rental\": short same-day or multi-day production work.\n- \"holiday_stay\": multi-night leisure stay.\n- \"mixed\": guest asks about both stay AND shoot/event in the same email.\n- \"confirmation\": replying to confirm a previously sent quote (\"yes, we'll take it\").\n- \"modification\": replying to change dates/guests/property in an existing thread.\n\nASKED-FOR FLAGS — set TRUE only if the email EXPLICITLY asks:\n- asked_for_services: TRUE if email mentions \"what's included\", \"services\", \"housekeeping\", \"cleaning included\", or asks for the full package.\n- asked_for_payment_terms: TRUE if email mentions \"payment terms\", \"deposit\", \"when is payment due\", \"balance\".\n- asked_for_full_details: TRUE if email asks for \"full details\", \"all the information\", \"complete booking conditions\", or asks for both services AND payment terms.\n\nCONFIDENCE RULES:\n- \"high\": property name unambiguous, dates explicit, intent clear.\n- \"medium\": one field guessed (e.g. \"your villa\" without naming which one — but only Villa Colibrí or Finca Cielo Azul fit context).\n- \"low\": guessed two or more fields, OR property name doesn't match any of the three above, OR dates ambiguous.\n\nNEVER invent values. Use null and add to missing_fields if unstated."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -1248,
+        -160
+      ],
+      "id": "2a3e033b-68e3-4da7-9aea-ec79d46a5745",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "claude-sonnet-4-5-20250929",
+          "cachedResultName": "Claude Sonnet 4.5"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [
+        -1248,
+        0
+      ],
+      "id": "bb2cd908-c791-4ba4-914f-24e900da6139",
+      "name": "Anthropic Chat Model",
+      "credentials": {
+        "anthropicApi": {
+          "id": "8kD5uR2r5AXSzoan",
+          "name": "Anthropic account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = [\n  {\n    \"text\": \"```json\\n{\\n  \\\"is_inquiry\\\": true,\\n  \\\"reason\\\": \\\"availability request for June-July 2026 dates\\\"\\n}\\n```\"\n  }\n];\n\n// Parse each item and return as array of objects\nconst results = input.map(item => {\n  const cleaned = item.text.replace(/```json\\n?|\\n?```/g, \"\").trim();\n  return JSON.parse(cleaned);\n});\n\nreturn results;\n// Returns: [{ is_inquiry: true, reason: \"availability request for June-July 2026 dates\" }]"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -240,
+        -352
+      ],
+      "id": "e0be7981-de2b-463b-a414-3e78a6b3a2d7",
+      "name": "Parse Inquiry"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1i54XfgLH9j3JrzOk0_Jc0eYRA8j1EKK0onVH4uCbIps",
+          "mode": "list",
+          "cachedResultName": "Grueter_Bot_Database",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1i54XfgLH9j3JrzOk0_Jc0eYRA8j1EKK0onVH4uCbIps/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1932231466,
+          "mode": "list",
+          "cachedResultName": "Log",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1i54XfgLH9j3JrzOk0_Jc0eYRA8j1EKK0onVH4uCbIps/edit#gid=1932231466"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "messageId",
+              "lookupValue": "={{ $json.internetMessageId }}"
+            }
+          ]
+        },
+        "options": {
+          "returnFirstMatch": true
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -880,
+        -336
+      ],
+      "id": "d6b79650-2b27-4dd7-a475-13d8c07e5cf2",
+      "name": "Already Processed?",
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "q8xTHfKugl2MIXum",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "6d19aabe-182b-4456-a6de-880aa0e1961e",
+              "leftValue": "={{ $json.messageId }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "empty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -672,
+        -336
+      ],
+      "id": "6b37466c-326d-4e56-b26b-49fd3500459d",
+      "name": "If2"
+    },
+    {
+      "parameters": {
+        "jsCode": "const subject = ($input.item.json.subject || '').toLowerCase();\nconst body = ($input.item.json.bodyPreview || '').toLowerCase();\nconst fromEmail = ($input.item.json.from_emailaddress || '').toLowerCase();\nconst haystack = subject + ' ' + body;\n\n// Guard 1: skip auto-replies\nif (/auto.?reply|out of office|abwesenheit|fuori sede|automatic reply|autoresponder/i.test(subject)) {\n  return { json: { ...$input.item.json, is_inquiry: false, filterReason: 'auto-reply' } };\n}\n\n// Guard 2: skip our own outgoing mail\nif (fromEmail.includes('grueter-residence.com') || fromEmail.includes('grueteroffice.com')) {\n  return { json: { ...$input.item.json, is_inquiry: false, filterReason: 'self-sent' } };\n}\n\n// Main keyword check\nconst keywords = [\n  'available', 'availability', 'book', 'booking', 'stay', 'dates', 'nights',\n  'villa', 'finca', 'residence', 'shoot', 'event', 'rental', 'rent',\n  'quote', 'price', 'rate', 'reservation', 'inquiry', 'enquiry',\n  'check-in', 'check in', 'guests', 'commission', 'production',\n  'g residence', 'grueter', 'colibri', 'cielo azul'\n];\n\nconst matchedKeywords = keywords.filter(k => haystack.includes(k));\nconst is_inquiry = matchedKeywords.length > 0;\n\nreturn {\n  json: {\n    ...$input.item.json,\n    is_inquiry,\n    matchedKeywords,\n    matchScore: matchedKeywords.length,\n    filterReason: is_inquiry ? 'matched' : 'no-keywords'\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -464,
+        -352
+      ],
+      "id": "7506ee43-452a-44a6-9b30-b03df971e496",
+      "name": "Inquiry Filter"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "7fb2d72f-31be-49a0-9831-7b2463a1afc5",
+              "leftValue": "={{ $json.is_inquiry }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -32,
+        -352
+      ],
+      "id": "1a6c2d3a-b953-4679-bd49-24e6da539fba",
+      "name": "IF — Is Inquiry?"
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.item.json;\n\n// Find the AI output regardless of node shape\nconst raw = item.output ?? item.text ?? item.choices?.[0]?.message?.content ?? '';\n\n// Strip markdown fences if present\nconst cleaned = String(raw).trim()\n  .replace(/^```(?:json)?\\s*\\n?/i, '')\n  .replace(/\\n?```\\s*$/, '')\n  .trim();\n\nlet parsed;\ntry {\n  parsed = JSON.parse(cleaned);\n} catch (err) {\n  // Pull through original email + flag for escalation\n  const orig = $('Normalize Email').item.json;\n  return {\n    json: {\n      ...orig,\n      classification: null,\n      parseFailed: true,\n      rawAiResponse: raw,\n      shouldEscalate: true,\n      escalateReason: 'AI returned invalid JSON',\n      decision: 'escalate'\n    }\n  };\n}\n\n// Pull through original email fields\nconst orig = $('Normalize Email').item.json;\n\n// Compute nights from dates if AI didn't or to verify\nlet computedNights = parsed.nights ?? null;\nif (parsed.check_in && parsed.check_out) {\n  const ms = new Date(parsed.check_out) - new Date(parsed.check_in);\n  computedNights = Math.max(0, Math.round(ms / 86400000));\n}\n\nlet checkInDow = parsed.check_in_dow;\nlet checkOutDow = parsed.check_out_dow;\n\nif (parsed.check_in) {\n  const dows = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];\n  checkInDow = dows[new Date(parsed.check_in).getUTCDay()];\n}\nif (parsed.check_out) {\n  const dows = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];\n  checkOutDow = dows[new Date(parsed.check_out).getUTCDay()];\n}\n\nconst isSameDay = parsed.check_in && parsed.check_in === parsed.check_out;\n\nreturn {\n  json: {\n    // Original email passthrough\n    subject: orig.subject,\n    fromEmail: orig.from_emailaddress,\n    fromName: orig.fromName,\n    bodyPreview: orig.bodyPreview,\n    bodyHtml: orig.bodyHtml,\n    internetMessageId: orig.internetMessageId,\n    conversationId: orig.conversationId,\n    references: orig.references,\n    receivedDate: orig.receivedDate,\n    to: orig.to,\n\n    // Classification (flattened)\n    isInquiry: parsed.is_inquiry,\n    intent: parsed.intent,\n    propertyName: parsed.property_name,\n    checkIn: parsed.check_in,\n    checkOut: parsed.check_out,\n    nights: computedNights,\n    checkInDow: parsed.check_in_dow,\n    checkOutDow: parsed.check_out_dow,\n    guests: parsed.guests,\n    isB2bAgent: parsed.is_b2b_agent,\n    clientQuotedRate: parsed.client_quoted_rate,\n    askedForServices: parsed.asked_for_services,\n    askedForPaymentTerms: parsed.asked_for_payment_terms,\n    askedForFullDetails: parsed.asked_for_full_details,\n    questionsInEmail: parsed.questions_in_email,\n    language: parsed.language,\n    confidence: parsed.confidence,\n    missingFields: parsed.missing_fields || [],\n    aiNotes: parsed.notes,\n    isSameDay,\n\n    // Routing\n    parseFailed: false,\n    shouldEscalate: parsed.confidence === 'low' || !parsed.is_inquiry || parsed.intent === 'not_an_inquiry'\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -912,
+        -160
+      ],
+      "id": "0b6dd5ec-589e-40a5-bcef-0f739eae1ea2",
+      "name": "Parse Classification"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "1f2ce625-43c9-4dcd-b733-90ba548d2610",
+              "leftValue": "={{ $json.isInquiry }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "9ce2d3cc-9d51-4104-95bf-3760aa81b584",
+              "leftValue": "={{ $json.shouldEscalate }}",
+              "rightValue": "high",
+              "operator": {
+                "type": "boolean",
+                "operation": "false",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -704,
+        -160
+      ],
+      "id": "20f440c2-a95f-4d0d-9776-9ff6fa1ffc83",
+      "name": "IF — Confidence Gate"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "290fda64-3d67-4a8c-a955-b26ef322e094",
+              "leftValue": "",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -1248,
+        144
+      ],
+      "id": "e9e555a2-cab3-46c3-8c9d-17c048ab4d18",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Pull the AI's extracted property name (could be null, fuzzy, or with extra suffix like \"Villa Colibri 5\")\nconst aiPropertyName = ($('Parse Classification').item.json.propertyName || '').toLowerCase().trim();\n\n// Get all property rows returned by the previous node (filtered by inbox already)\nconst propertyRows = $input.all().map(item => item.json);\n\n// Helper: normalize for comparison (lowercase, trim, collapse whitespace)\nconst normalize = (s) => (s || '')\n  .toLowerCase()\n  .normalize('NFD')          // decompose accents\n  .replace(/[\\u0300-\\u036f]/g, '')  // strip accent marks\n  .trim()\n  .replace(/\\s+/g, ' ');\n\n// Helper: does the AI's property name contain or get contained by any candidate string?\nconst matches = (aiName, candidate) => {\n  const a = normalize(aiName);\n  const c = normalize(candidate);\n  if (!a || !c) return false;\n  // bidirectional substring match — handles \"Villa Colibri 5\" vs \"Villa Colibrí\" both ways\n  return a.includes(c) || c.includes(a);\n};\n\n// Try to find a matching row\nlet matchedProperty = null;\nlet matchReason = null;\n\nfor (const row of propertyRows) {\n  // First try: exact-ish match on property_name\n  if (matches(aiPropertyName, row.property_name)) {\n    matchedProperty = row;\n    matchReason = 'name_match';\n    break;\n  }\n  \n  // Second try: match against any alias (aliases column is comma-separated)\n  const aliases = (row.aliases || '').split(',').map(a => a.trim()).filter(Boolean);\n  for (const alias of aliases) {\n    if (matches(aiPropertyName, alias)) {\n      matchedProperty = row;\n      matchReason = 'alias_match';\n      break;\n    }\n  }\n  if (matchedProperty) break;\n}\n\n// Pull through all the original classification data + the matched property\nconst classification = $('Parse Classification').item.json;\n\nif (matchedProperty) {\n  return [{\n    json: {\n      ...classification,\n      // Matched property fields, prefixed for clarity\n      propertyId: matchedProperty.property_id,\n      propertyCanonicalName: matchedProperty.property_name,\n      propertyInbox: matchedProperty.inbox,\n      propertyChannel: matchedProperty.channel,\n      propertyIcalUrl: matchedProperty.ical_url,\n      acceptsOvernight: String(matchedProperty.accepts_overnight).toUpperCase() === 'TRUE',\n      acceptsEvents: String(matchedProperty.accepts_events).toUpperCase() === 'TRUE',\n      currency: matchedProperty.currency,\n      securityDeposit: matchedProperty.security_deposit,\n      templateSet: matchedProperty.template_set,\n      // Match metadata\n      propertyMatched: true,\n      matchReason,\n      matchedAgainst: aiPropertyName\n    }\n  }];\n}\n\n// Common known properties from the OTHER inbox — used to detect routing errors\nconst OTHER_INBOX_HINTS = {\n  'office@grueter-residence.com': ['villa colibri', 'colibrí', 'finca', 'cielo azul'],\n  'info@grueteroffice.com': ['g residence', 'grueter', 'gruter']\n};\n\nconst currentInbox = (classification.to || '').toLowerCase();\nconst otherInboxKeywords = OTHER_INBOX_HINTS[\n  Object.keys(OTHER_INBOX_HINTS).find(k => currentInbox.includes(k.split('@')[0])) || ''\n] || [];\n\nconst looksLikeWrongInbox = otherInboxKeywords.some(kw => \n  aiPropertyName.includes(kw)\n);\n\n\n// No match — pull through everything for the escalation path to use\nreturn [{\n  json: {\n    ...classification,\n    propertyMatched: false,\n    matchReason: 'no_match',\n    matchedAgainst: aiPropertyName,\n    candidatesChecked: propertyRows.map(r => r.property_name),\n    shouldEscalate: true,\n    escalateReason: looksLikeWrongInbox \n      ? 'wrong_inbox_likely' \n      : 'property_not_recognized',\n    routingHint: looksLikeWrongInbox \n      ? 'This inquiry mentions a property managed by your other inbox. Likely a sender routing error.' \n      : null\n  }\n}];\n\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -48,
+        -176
+      ],
+      "id": "699495a7-9670-4b30-9bf5-6212d414a422",
+      "name": "Match Property"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1i54XfgLH9j3JrzOk0_Jc0eYRA8j1EKK0onVH4uCbIps",
+          "mode": "list",
+          "cachedResultName": "Grueter_Bot_Database",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1i54XfgLH9j3JrzOk0_Jc0eYRA8j1EKK0onVH4uCbIps/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 936817148,
+          "mode": "list",
+          "cachedResultName": "Properties",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1i54XfgLH9j3JrzOk0_Jc0eYRA8j1EKK0onVH4uCbIps/edit#gid=936817148"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "inbox",
+              "lookupValue": "={{ $('Normalize Email').item.json.to }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -256,
+        -176
+      ],
+      "id": "81fd39bc-3f37-4648-821d-a39a947c8771",
+      "name": "Property Lookup",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "q8xTHfKugl2MIXum",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1i54XfgLH9j3JrzOk0_Jc0eYRA8j1EKK0onVH4uCbIps",
+          "mode": "list",
+          "cachedResultName": "Grueter_Bot_Database",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1i54XfgLH9j3JrzOk0_Jc0eYRA8j1EKK0onVH4uCbIps/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1932231466,
+          "mode": "list",
+          "cachedResultName": "Log",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1i54XfgLH9j3JrzOk0_Jc0eYRA8j1EKK0onVH4uCbIps/edit#gid=1932231466"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -464,
+        -176
+      ],
+      "id": "bde97c07-078c-4c40-b58a-d76a631f46e8",
+      "name": "Conversation State Lookup",
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "q8xTHfKugl2MIXum",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "format": "resolved",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.emailReadImap",
+      "typeVersion": 2.1,
+      "position": [
+        -1312,
+        592
+      ],
+      "id": "f8de2c29-a39f-445c-89ed-d2b69407c81f",
+      "name": "Email Trigger (IMAP)1",
+      "credentials": {
+        "imap": {
+          "id": "ZQjWQIT9bFaJDEEZ",
+          "name": "inforesudence"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "2e31b646-66e0-4c1f-a70b-0a5b9b6a7f6f",
+              "name": "subject",
+              "value": "={{ $json.subject }}",
+              "type": "string"
+            },
+            {
+              "id": "63580e3a-22f5-4ab7-847b-62af4a3a926f",
+              "name": "from_emailaddress",
+              "value": "={{ $json.from.value[0].address }}",
+              "type": "string"
+            },
+            {
+              "id": "a6a2debb-2390-4027-ba59-2e4d7ba65212",
+              "name": "bodyPreview",
+              "value": "={{ $json.text }}",
+              "type": "string"
+            },
+            {
+              "id": "cadd52a6-595d-449a-9ac1-3a5df02e7961",
+              "name": "bodyHtml",
+              "value": "={{ $json.textAsHtml }}",
+              "type": "string"
+            },
+            {
+              "id": "d51cd8c5-c25e-4f65-be79-6fa97c96440b",
+              "name": "internetMessageId",
+              "value": "={{ $json.messageId }}",
+              "type": "string"
+            },
+            {
+              "id": "1c3fda80-fe61-4d13-a06a-391aac2ac538",
+              "name": "conversationId",
+              "value": "={{ $json.attributes.uid }}",
+              "type": "number"
+            },
+            {
+              "id": "d4f9ca6f-3552-4249-ac1e-3110d1c0d756",
+              "name": "fromName",
+              "value": "={{ $json.from.value[0].name }}",
+              "type": "string"
+            },
+            {
+              "id": "388fb1a4-cd8b-4f6d-b335-ec2e1bcdd9b5",
+              "name": "to",
+              "value": "={{ $json.to }}",
+              "type": "string"
+            },
+            {
+              "id": "ab704940-c135-41ad-a210-6a9ecfdd556e",
+              "name": "references",
+              "value": "=",
+              "type": "string"
+            },
+            {
+              "id": "9bce6677-576f-4938-ae51-11befa99bcae",
+              "name": "receivedDate",
+              "value": "={{ $json.date }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1136,
+        592
+      ],
+      "id": "c75798d8-05fc-45ef-8966-326409f055e5",
+      "name": "Normalize Email1"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Subject: {{ $('Normalize Email1').item.json.subject}}\n\nFrom: {{ $('Normalize Email1').item.json.fromName }} <{{ $('Normalize Email1').item.json.from_emailaddress }}>\n\nBody: {{ $('Normalize Email1').item.json.bodyPreview }}",
+        "options": {
+          "systemMessage": "You are an intake agent for a luxury holiday rental property manager based in Spain. Today's date is {{ $now.toISO() }}.\n\nYou handle inquiries for three properties:\n1. The G Residence (LOCATION RENTAL ONLY — not available for overnight holiday stays. Photo shoots, video shoots, events only.)\n2. Villa Colibrí (overnight rentals + events)\n3. Finca Cielo Azul (overnight rentals + events)\n\nInquiries often come from B2B agents on behalf of clients. The \"official rate\" mentioned in agent emails already includes their commission.\n\nReturn ONLY valid JSON in this exact schema. No prose, no markdown fences:\n\n{\n  \"is_inquiry\": boolean,\n  \"intent\": \"holiday_stay\" | \"photo_shoot\" | \"video_shoot\" | \"event_rental\" | \"mixed\" | \"general_question\" | \"confirmation\" | \"modification\" | \"not_an_inquiry\",\n  \"property_name\": string | null,\n  \"check_in\": \"YYYY-MM-DD\" | null,\n  \"check_out\": \"YYYY-MM-DD\" | null,\n  \"nights\": integer | null,\n  \"check_in_dow\": \"Mon\"|\"Tue\"|\"Wed\"|\"Thu\"|\"Fri\"|\"Sat\"|\"Sun\" | null,\n  \"check_out_dow\": \"Mon\"|\"Tue\"|\"Wed\"|\"Thu\"|\"Fri\"|\"Sat\"|\"Sun\" | null,\n  \"guests\": integer | null,\n  \"is_b2b_agent\": boolean,\n  \"client_quoted_rate\": number | null,\n  \"asked_for_services\": boolean,\n  \"asked_for_payment_terms\": boolean,\n  \"asked_for_full_details\": boolean,\n  \"questions_in_email\": [string],\n  \"language\": \"en\" | \"fr\" | \"de\" | \"it\" | \"es\" | \"other\",\n  \"confidence\": \"high\" | \"medium\" | \"low\",\n  \"missing_fields\": [string],\n  \"notes\": string\n}\n\nEXTRACTION RULES:\n- Dates in DD/MM/YYYY format are European (5/8/2026 = August 5, 2026, NOT May 8).\n- \"August 5-12\" without a year means the next upcoming occurrence relative to today.\n- nights = (check_out - check_in) in days. Same-day = 0 nights = event/shoot, never holiday_stay.\n- check_in_dow / check_out_dow: compute from the dates if both are known.\n\nINTENT RULES:\n- \"photo_shoot\", \"video_shoot\", \"event_rental\": short same-day or multi-day production work.\n- \"holiday_stay\": multi-night leisure stay.\n- \"mixed\": guest asks about both stay AND shoot/event in the same email.\n- \"confirmation\": replying to confirm a previously sent quote (\"yes, we'll take it\").\n- \"modification\": replying to change dates/guests/property in an existing thread.\n\nASKED-FOR FLAGS — set TRUE only if the email EXPLICITLY asks:\n- asked_for_services: TRUE if email mentions \"what's included\", \"services\", \"housekeeping\", \"cleaning included\", or asks for the full package.\n- asked_for_payment_terms: TRUE if email mentions \"payment terms\", \"deposit\", \"when is payment due\", \"balance\".\n- asked_for_full_details: TRUE if email asks for \"full details\", \"all the information\", \"complete booking conditions\", or asks for both services AND payment terms.\n\nCONFIDENCE RULES:\n- \"high\": property name unambiguous, dates explicit, intent clear.\n- \"medium\": one field guessed (e.g. \"your villa\" without naming which one — but only Villa Colibrí or Finca Cielo Azul fit context).\n- \"low\": guessed two or more fields, OR property name doesn't match any of the three above, OR dates ambiguous.\n\nNEVER invent values. Use null and add to missing_fields if unstated."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -1328,
+        768
+      ],
+      "id": "91f7821b-d553-40c6-8be0-ca47e348927e",
+      "name": "AI Agent1"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "claude-sonnet-4-5-20250929",
+          "cachedResultName": "Claude Sonnet 4.5"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [
+        -1328,
+        912
+      ],
+      "id": "42778394-2d16-4d37-afbd-962a01e2a885",
+      "name": "Anthropic Chat Model2",
+      "credentials": {
+        "anthropicApi": {
+          "id": "8kD5uR2r5AXSzoan",
+          "name": "Anthropic account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = [\n  {\n    \"text\": \"```json\\n{\\n  \\\"is_inquiry\\\": true,\\n  \\\"reason\\\": \\\"availability request for June-July 2026 dates\\\"\\n}\\n```\"\n  }\n];\n\n// Parse each item and return as array of objects\nconst results = input.map(item => {\n  const cleaned = item.text.replace(/```json\\n?|\\n?```/g, \"\").trim();\n  return JSON.parse(cleaned);\n});\n\nreturn results;\n// Returns: [{ is_inquiry: true, reason: \"availability request for June-July 2026 dates\" }]"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -288,
+        576
+      ],
+      "id": "160a3519-ccd1-457d-8418-b28e3342ae73",
+      "name": "Parse Inquiry1"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1i54XfgLH9j3JrzOk0_Jc0eYRA8j1EKK0onVH4uCbIps",
+          "mode": "list",
+          "cachedResultName": "Grueter_Bot_Database",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1i54XfgLH9j3JrzOk0_Jc0eYRA8j1EKK0onVH4uCbIps/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1932231466,
+          "mode": "list",
+          "cachedResultName": "Log",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1i54XfgLH9j3JrzOk0_Jc0eYRA8j1EKK0onVH4uCbIps/edit#gid=1932231466"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "messageId",
+              "lookupValue": "={{ $json.internetMessageId }}"
+            }
+          ]
+        },
+        "options": {
+          "returnFirstMatch": true
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -928,
+        592
+      ],
+      "id": "64fde415-e138-4f48-bd8f-fcf2944d1ffa",
+      "name": "Already Processed?1",
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "q8xTHfKugl2MIXum",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "6d19aabe-182b-4456-a6de-880aa0e1961e",
+              "leftValue": "={{ $json.messageId }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "empty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -720,
+        592
+      ],
+      "id": "269f0915-4552-4382-ab15-8014bbcfda88",
+      "name": "If3"
+    },
+    {
+      "parameters": {
+        "jsCode": "const subject = ($input.item.json.subject || '').toLowerCase();\nconst body = ($input.item.json.bodyPreview || '').toLowerCase();\nconst fromEmail = ($input.item.json.from_emailaddress || '').toLowerCase();\nconst haystack = subject + ' ' + body;\n\n// Guard 1: skip auto-replies\nif (/auto.?reply|out of office|abwesenheit|fuori sede|automatic reply|autoresponder/i.test(subject)) {\n  return { json: { ...$input.item.json, is_inquiry: false, filterReason: 'auto-reply' } };\n}\n\n// Guard 2: skip our own outgoing mail\nif (fromEmail.includes('grueter-residence.com') || fromEmail.includes('grueteroffice.com')) {\n  return { json: { ...$input.item.json, is_inquiry: false, filterReason: 'self-sent' } };\n}\n\n// Main keyword check\nconst keywords = [\n  'available', 'availability', 'book', 'booking', 'stay', 'dates', 'nights',\n  'villa', 'finca', 'residence', 'shoot', 'event', 'rental', 'rent',\n  'quote', 'price', 'rate', 'reservation', 'inquiry', 'enquiry',\n  'check-in', 'check in', 'guests', 'commission', 'production',\n  'g residence', 'grueter', 'colibri', 'cielo azul'\n];\n\nconst matchedKeywords = keywords.filter(k => haystack.includes(k));\nconst is_inquiry = matchedKeywords.length > 0;\n\nreturn {\n  json: {\n    ...$input.item.json,\n    is_inquiry,\n    matchedKeywords,\n    matchScore: matchedKeywords.length,\n    filterReason: is_inquiry ? 'matched' : 'no-keywords'\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -512,
+        576
+      ],
+      "id": "2bdafe10-cd7b-4a21-8543-d6ffc41e7c7d",
+      "name": "Inquiry Filter1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "7fb2d72f-31be-49a0-9831-7b2463a1afc5",
+              "leftValue": "={{ $json.is_inquiry }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -80,
+        576
+      ],
+      "id": "37e66e9d-2562-49b8-a829-a91fffc3e19e",
+      "name": "IF — Is Inquiry?1"
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.item.json;\n\n// Find the AI output regardless of node shape\nconst raw = item.output ?? item.text ?? item.choices?.[0]?.message?.content ?? '';\n\n// Strip markdown fences if present\nconst cleaned = String(raw).trim()\n  .replace(/^```(?:json)?\\s*\\n?/i, '')\n  .replace(/\\n?```\\s*$/, '')\n  .trim();\n\nlet parsed;\ntry {\n  parsed = JSON.parse(cleaned);\n} catch (err) {\n  // Pull through original email + flag for escalation\n  const orig = $('Normalize Email1').item.json;\n  return {\n    json: {\n      ...orig,\n      classification: null,\n      parseFailed: true,\n      rawAiResponse: raw,\n      shouldEscalate: true,\n      escalateReason: 'AI returned invalid JSON',\n      decision: 'escalate'\n    }\n  };\n}\n\n// Pull through original email fields\nconst orig = $('Normalize Email1').item.json;\n\n// Compute nights from dates if AI didn't or to verify\nlet computedNights = parsed.nights ?? null;\nif (parsed.check_in && parsed.check_out) {\n  const ms = new Date(parsed.check_out) - new Date(parsed.check_in);\n  computedNights = Math.max(0, Math.round(ms / 86400000));\n}\n\nlet checkInDow = parsed.check_in_dow;\nlet checkOutDow = parsed.check_out_dow;\n\nif (parsed.check_in) {\n  const dows = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];\n  checkInDow = dows[new Date(parsed.check_in).getUTCDay()];\n}\nif (parsed.check_out) {\n  const dows = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];\n  checkOutDow = dows[new Date(parsed.check_out).getUTCDay()];\n}\n\nconst isSameDay = parsed.check_in && parsed.check_in === parsed.check_out;\n\nreturn {\n  json: {\n    // Original email passthrough\n    subject: orig.subject,\n    fromEmail: orig.from_emailaddress,\n    fromName: orig.fromName,\n    bodyPreview: orig.bodyPreview,\n    bodyHtml: orig.bodyHtml,\n    internetMessageId: orig.internetMessageId,\n    conversationId: orig.conversationId,\n    references: orig.references,\n    receivedDate: orig.receivedDate,\n    to: orig.to,\n\n    // Classification (flattened)\n    isInquiry: parsed.is_inquiry,\n    intent: parsed.intent,\n    propertyName: parsed.property_name,\n    checkIn: parsed.check_in,\n    checkOut: parsed.check_out,\n    nights: computedNights,\n    checkInDow: parsed.check_in_dow,\n    checkOutDow: parsed.check_out_dow,\n    guests: parsed.guests,\n    isB2bAgent: parsed.is_b2b_agent,\n    clientQuotedRate: parsed.client_quoted_rate,\n    askedForServices: parsed.asked_for_services,\n    askedForPaymentTerms: parsed.asked_for_payment_terms,\n    askedForFullDetails: parsed.asked_for_full_details,\n    questionsInEmail: parsed.questions_in_email,\n    language: parsed.language,\n    confidence: parsed.confidence,\n    missingFields: parsed.missing_fields || [],\n    aiNotes: parsed.notes,\n    isSameDay,\n\n    // Routing\n    parseFailed: false,\n    shouldEscalate: parsed.confidence === 'low' || !parsed.is_inquiry || parsed.intent === 'not_an_inquiry'\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -992,
+        768
+      ],
+      "id": "716b9a2b-0540-4d3c-8186-af124ee8e351",
+      "name": "Parse Classification1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "1f2ce625-43c9-4dcd-b733-90ba548d2610",
+              "leftValue": "={{ $json.isInquiry }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "9ce2d3cc-9d51-4104-95bf-3760aa81b584",
+              "leftValue": "={{ $json.shouldEscalate }}",
+              "rightValue": "high",
+              "operator": {
+                "type": "boolean",
+                "operation": "false",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -784,
+        768
+      ],
+      "id": "9f908754-2712-4321-bf86-ae70a3807dda",
+      "name": "IF — Confidence Gate1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "290fda64-3d67-4a8c-a955-b26ef322e094",
+              "leftValue": "",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        64,
+        752
+      ],
+      "id": "d901b303-05de-443a-892f-c839571fa11b",
+      "name": "If1"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Pull the AI's extracted property name (could be null, fuzzy, or with extra suffix like \"Villa Colibri 5\")\nconst aiPropertyName = ($('Parse Classification1').item.json.propertyName || '').toLowerCase().trim();\n\n// Get all property rows returned by the previous node (filtered by inbox already)\nconst propertyRows = $input.all().map(item => item.json);\n\n// Helper: normalize for comparison (lowercase, trim, collapse whitespace)\nconst normalize = (s) => (s || '')\n  .toLowerCase()\n  .normalize('NFD')          // decompose accents\n  .replace(/[\\u0300-\\u036f]/g, '')  // strip accent marks\n  .trim()\n  .replace(/\\s+/g, ' ');\n\n// Helper: does the AI's property name contain or get contained by any candidate string?\nconst matches = (aiName, candidate) => {\n  const a = normalize(aiName);\n  const c = normalize(candidate);\n  if (!a || !c) return false;\n  // bidirectional substring match — handles \"Villa Colibri 5\" vs \"Villa Colibrí\" both ways\n  return a.includes(c) || c.includes(a);\n};\n\n// Try to find a matching row\nlet matchedProperty = null;\nlet matchReason = null;\n\nfor (const row of propertyRows) {\n  // First try: exact-ish match on property_name\n  if (matches(aiPropertyName, row.property_name)) {\n    matchedProperty = row;\n    matchReason = 'name_match';\n    break;\n  }\n  \n  // Second try: match against any alias (aliases column is comma-separated)\n  const aliases = (row.aliases || '').split(',').map(a => a.trim()).filter(Boolean);\n  for (const alias of aliases) {\n    if (matches(aiPropertyName, alias)) {\n      matchedProperty = row;\n      matchReason = 'alias_match';\n      break;\n    }\n  }\n  if (matchedProperty) break;\n}\n\n// Pull through all the original classification data + the matched property\nconst classification = $('Parse Classification1').item.json;\n\nif (matchedProperty) {\n  return [{\n    json: {\n      ...classification,\n      // Matched property fields, prefixed for clarity\n      propertyId: matchedProperty.property_id,\n      propertyCanonicalName: matchedProperty.property_name,\n      propertyInbox: matchedProperty.inbox,\n      propertyChannel: matchedProperty.channel,\n      propertyIcalUrl: matchedProperty.ical_url,\n      acceptsOvernight: String(matchedProperty.accepts_overnight).toUpperCase() === 'TRUE',\n      acceptsEvents: String(matchedProperty.accepts_events).toUpperCase() === 'TRUE',\n      currency: matchedProperty.currency,\n      securityDeposit: matchedProperty.security_deposit,\n      templateSet: matchedProperty.template_set,\n      // Match metadata\n      propertyMatched: true,\n      matchReason,\n      matchedAgainst: aiPropertyName\n    }\n  }];\n}\n\n// Common known properties from the OTHER inbox — used to detect routing errors\nconst OTHER_INBOX_HINTS = {\n  'office@grueter-residence.com': ['villa colibri', 'colibrí', 'finca', 'cielo azul'],\n  'info@grueteroffice.com': ['g residence', 'grueter', 'gruter']\n};\n\nconst currentInbox = (classification.to || '').toLowerCase();\nconst otherInboxKeywords = OTHER_INBOX_HINTS[\n  Object.keys(OTHER_INBOX_HINTS).find(k => currentInbox.includes(k.split('@')[0])) || ''\n] || [];\n\nconst looksLikeWrongInbox = otherInboxKeywords.some(kw => \n  aiPropertyName.includes(kw)\n);\n\n\n// No match — pull through everything for the escalation path to use\nreturn [{\n  json: {\n    ...classification,\n    propertyMatched: false,\n    matchReason: 'no_match',\n    matchedAgainst: aiPropertyName,\n    candidatesChecked: propertyRows.map(r => r.property_name),\n    shouldEscalate: true,\n    escalateReason: 'property_not_recognized'\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -128,
+        752
+      ],
+      "id": "c396e9de-455d-4750-a9b7-fa1894d7f9ed",
+      "name": "Match Property1"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1i54XfgLH9j3JrzOk0_Jc0eYRA8j1EKK0onVH4uCbIps",
+          "mode": "list",
+          "cachedResultName": "Grueter_Bot_Database",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1i54XfgLH9j3JrzOk0_Jc0eYRA8j1EKK0onVH4uCbIps/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 936817148,
+          "mode": "list",
+          "cachedResultName": "Properties",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1i54XfgLH9j3JrzOk0_Jc0eYRA8j1EKK0onVH4uCbIps/edit#gid=936817148"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "inbox",
+              "lookupValue": "={{ $('Email Trigger (IMAP)1').first().json.to.value[0].address }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -336,
+        752
+      ],
+      "id": "ceeb1bda-d924-456c-bc36-a6406bd4d1db",
+      "name": "Property Lookup1",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "q8xTHfKugl2MIXum",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1i54XfgLH9j3JrzOk0_Jc0eYRA8j1EKK0onVH4uCbIps",
+          "mode": "list",
+          "cachedResultName": "Grueter_Bot_Database",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1i54XfgLH9j3JrzOk0_Jc0eYRA8j1EKK0onVH4uCbIps/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1932231466,
+          "mode": "list",
+          "cachedResultName": "Log",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1i54XfgLH9j3JrzOk0_Jc0eYRA8j1EKK0onVH4uCbIps/edit#gid=1932231466"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -544,
+        752
+      ],
+      "id": "746080b7-8d72-47bf-929a-b3d0614e99ad",
+      "name": "Conversation State Lookup1",
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "q8xTHfKugl2MIXum",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c241a94b-8e6c-49e5-92b5-e5d34bda0238",
+              "name": "routingDecision",
+              "value": "={{ !$json.acceptsOvernight && $json.intent === 'holiday_stay' ? 'not_overnight' : !$json.acceptsOvernight && $json.intent === 'mixed' ? 'escalate' : ['holiday_stay','photo_shoot','video_shoot','event_rental','mixed'].includes($json.intent) ? 'check_availability' : 'escalate' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1024,
+        48
+      ],
+      "id": "322a7030-b635-4aff-a360-6603be9c4a1a",
+      "name": "Compute Routing"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.routingDecision }}",
+                    "rightValue": "not_overnight",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "f2bb8c52-732c-4590-8a36-6093e488d728"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "not_overnight"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "8ae129a4-396a-438a-81f8-ce4b35038727",
+                    "leftValue": "={{ $json.routingDecision }}",
+                    "rightValue": "check_availability",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "check_availability"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "ec028815-60f9-4cf6-a9fc-d0f7a1da9e4d",
+                    "leftValue": "={{ $json.routingDecision }}",
+                    "rightValue": "escalate",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "escalate"
+            }
+          ]
+        },
+        "looseTypeValidation": true,
+        "options": {
+          "fallbackOutput": 2
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        -784,
+        32
+      ],
+      "id": "031fe49c-b586-4551-b993-d19be5662fbf",
+      "name": "Routing Decision"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c241a94b-8e6c-49e5-92b5-e5d34bda0238",
+              "name": "routingDecision",
+              "value": "={{ !$json.acceptsOvernight && $json.intent === 'holiday_stay' ? 'not_overnight' : !$json.acceptsOvernight && $json.intent === 'mixed' ? 'escalate' : ['holiday_stay','photo_shoot','video_shoot','event_rental','mixed'].includes($json.intent) ? 'check_availability' : 'escalate' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1344,
+        1056
+      ],
+      "id": "ce884f99-fe3d-4f20-94a4-ab1a797dc4b1",
+      "name": "Compute Routing1"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.routingDecision }}",
+                    "rightValue": "not_overnight",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "f2bb8c52-732c-4590-8a36-6093e488d728"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "not_overnight"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "8ae129a4-396a-438a-81f8-ce4b35038727",
+                    "leftValue": "={{ $json.routingDecision }}",
+                    "rightValue": "check_availability",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "check_availability"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "ec028815-60f9-4cf6-a9fc-d0f7a1da9e4d",
+                    "leftValue": "={{ $json.routingDecision }}",
+                    "rightValue": "escalate",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "escalate"
+            }
+          ]
+        },
+        "looseTypeValidation": true,
+        "options": {
+          "fallbackOutput": 2
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        -1152,
+        976
+      ],
+      "id": "eaed4555-d55c-491b-8f6c-8e07ba21f4ad",
+      "name": "Routing Decision1"
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Match Property').item.json.propertyIcalUrl }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true,
+              "responseFormat": "text"
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -560,
+        48
+      ],
+      "id": "fb67ba31-6d99-4d2a-975e-f37c028e6847",
+      "name": "Fetch iCal"
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Match Property1').item.json.propertyIcalUrl }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true,
+              "responseFormat": "text"
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -848,
+        992
+      ],
+      "id": "11d999c7-5218-40e1-876b-f3c2a69dd16a",
+      "name": "Fetch iCal1"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get the raw iCal text from the Fetch iCal node\nconst icalRaw = $input.first().json.data || $input.first().json.body || '';\nconst icalText = String(icalRaw);\n\n// Get the requested dates from upstream classification\n// (adjust the node name 'Match Property' to match what you've named yours)\nconst upstream = $('Match Property1').item.json;\nconst checkInStr = upstream.checkIn;\nconst checkOutStr = upstream.checkOut;\n\n// Defensive: if we somehow got here without dates, escalate\nif (!checkInStr || !checkOutStr) {\n  return [{\n    json: {\n      ...upstream,\n      available: null,\n      conflicts: [],\n      icalEventCount: 0,\n      shouldEscalate: true,\n      escalateReason: 'missing_dates_at_availability_check'\n    }\n  }];\n}\n\nconst checkIn = new Date(checkInStr);\nconst checkOut = new Date(checkOutStr);\n\n// Parse all VEVENT blocks\nfunction parseIcalDate(s) {\n  // Handle YYYYMMDD, YYYYMMDDTHHMMSS, YYYYMMDDTHHMMSSZ\n  const clean = s.trim().replace(/Z$/, '').replace('T', '');\n  const yyyy = clean.substring(0, 4);\n  const mm = clean.substring(4, 6);\n  const dd = clean.substring(6, 8);\n  return new Date(`${yyyy}-${mm}-${dd}T00:00:00Z`);\n}\n\nconst events = [];\nconst veventRegex = /BEGIN:VEVENT([\\s\\S]*?)END:VEVENT/g;\nlet match;\nwhile ((match = veventRegex.exec(icalText)) !== null) {\n  const block = match[1];\n  const dtStartMatch = block.match(/DTSTART(?:;VALUE=DATE)?(?:;TZID=[^:]+)?:([^\\r\\n]+)/);\n  const dtEndMatch = block.match(/DTEND(?:;VALUE=DATE)?(?:;TZID=[^:]+)?:([^\\r\\n]+)/);\n  const summaryMatch = block.match(/SUMMARY:([^\\r\\n]+)/);\n  \n  if (dtStartMatch && dtEndMatch) {\n    try {\n      events.push({\n        start: parseIcalDate(dtStartMatch[1]),\n        end: parseIcalDate(dtEndMatch[1]),\n        summary: summaryMatch ? summaryMatch[1].trim() : '(no title)'\n      });\n    } catch (e) {\n      // Skip malformed events\n    }\n  }\n}\n\n// Check overlap. Note: iCal DTEND is exclusive — a booking ending Aug 15\n// means the room is free from Aug 15 onwards, not blocked through Aug 15.\n// Same logic for our requested checkOut.\nconst conflicts = events.filter(e => {\n  return checkIn < e.end && checkOut > e.start;\n});\n\nconst available = conflicts.length === 0;\n\n\nreturn [{\n  json: {\n    ...upstream,\n    available,\n    conflicts: conflicts.map(c => ({\n      start: c.start.toISOString().slice(0, 10),\n      end: c.end.toISOString().slice(0, 10),\n      summary: c.summary\n    })),\n    icalEventCount: events.length,\n    icalParseStatus: events.length > 0 ? 'ok' : 'no_events_found'\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -640,
+        992
+      ],
+      "id": "8be665d6-ac07-4bdc-b62b-b76e817cb514",
+      "name": "Parse iCal & Check Availability1"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get the raw iCal text from the Fetch iCal node\nconst icalRaw = $input.first().json.data || $input.first().json.body || '';\nconst icalText = String(icalRaw);\n\n// Get the requested dates from upstream classification\n// (adjust the node name 'Match Property' to match what you've named yours)\nconst upstream = $('Match Property').item.json;\nconst checkInStr = upstream.checkIn;\nconst checkOutStr = upstream.checkOut;\n\n// Defensive: if we somehow got here without dates, escalate\nif (!checkInStr || !checkOutStr) {\n  return [{\n    json: {\n      ...upstream,\n      available: null,\n      conflicts: [],\n      icalEventCount: 0,\n      shouldEscalate: true,\n      escalateReason: 'missing_dates_at_availability_check'\n    }\n  }];\n}\n\nconst checkIn = new Date(checkInStr);\nconst checkOut = new Date(checkOutStr);\n\n// Parse all VEVENT blocks\nfunction parseIcalDate(s) {\n  // Handle YYYYMMDD, YYYYMMDDTHHMMSS, YYYYMMDDTHHMMSSZ\n  const clean = s.trim().replace(/Z$/, '').replace('T', '');\n  const yyyy = clean.substring(0, 4);\n  const mm = clean.substring(4, 6);\n  const dd = clean.substring(6, 8);\n  return new Date(`${yyyy}-${mm}-${dd}T00:00:00Z`);\n}\n\nconst events = [];\nconst veventRegex = /BEGIN:VEVENT([\\s\\S]*?)END:VEVENT/g;\nlet match;\nwhile ((match = veventRegex.exec(icalText)) !== null) {\n  const block = match[1];\n  const dtStartMatch = block.match(/DTSTART(?:;VALUE=DATE)?(?:;TZID=[^:]+)?:([^\\r\\n]+)/);\n  const dtEndMatch = block.match(/DTEND(?:;VALUE=DATE)?(?:;TZID=[^:]+)?:([^\\r\\n]+)/);\n  const summaryMatch = block.match(/SUMMARY:([^\\r\\n]+)/);\n  \n  if (dtStartMatch && dtEndMatch) {\n    try {\n      events.push({\n        start: parseIcalDate(dtStartMatch[1]),\n        end: parseIcalDate(dtEndMatch[1]),\n        summary: summaryMatch ? summaryMatch[1].trim() : '(no title)'\n      });\n    } catch (e) {\n      // Skip malformed events\n    }\n  }\n}\n\n// Check overlap. Note: iCal DTEND is exclusive — a booking ending Aug 15\n// means the room is free from Aug 15 onwards, not blocked through Aug 15.\n// Same logic for our requested checkOut.\nconst conflicts = events.filter(e => {\n  return checkIn < e.end && checkOut > e.start;\n});\n\nconst available = conflicts.length === 0;\n\nreturn [{\n  json: {\n    ...upstream,\n    available,\n    conflicts: conflicts.map(c => ({\n      start: c.start.toISOString().slice(0, 10),\n      end: c.end.toISOString().slice(0, 10),\n      summary: c.summary\n    })),\n    icalEventCount: events.length,\n    icalParseStatus: events.length > 0 ? 'ok' : 'no_events_found'\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -384,
+        48
+      ],
+      "id": "49edffd5-9fee-4ada-b859-cfa3969f0ecf",
+      "name": "Parse iCal & Check Availability"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "8f1ee371-5bb0-40e6-9051-27ab78852b9f",
+              "leftValue": "={{ $json.available }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -208,
+        48
+      ],
+      "id": "09b37290-8872-4797-bfa6-ef8f60d742e1",
+      "name": "IF Available?"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "8f1ee371-5bb0-40e6-9051-27ab78852b9f",
+              "leftValue": "={{ $json.available }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -448,
+        992
+      ],
+      "id": "860cf5db-4595-42bc-ada4-c780f446baae",
+      "name": "IF Available?1"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1i54XfgLH9j3JrzOk0_Jc0eYRA8j1EKK0onVH4uCbIps",
+          "mode": "list",
+          "cachedResultName": "Grueter_Bot_Database",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1i54XfgLH9j3JrzOk0_Jc0eYRA8j1EKK0onVH4uCbIps/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1932231466,
+          "mode": "list",
+          "cachedResultName": "Log",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1i54XfgLH9j3JrzOk0_Jc0eYRA8j1EKK0onVH4uCbIps/edit#gid=1932231466"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "timestamp": "={{ $now.toISO() }}",
+            "messageId": "={{ $('Email Trigger (IMAP)1').item.json.messageId }}",
+            "conversationId": "={{ $json.conversationId }}",
+            "inbox": "={{ $('Email Trigger (IMAP)1').item.json.to.value[0].address }}",
+            "from_email": "={{ $('Email Trigger (IMAP)1').item.json.from.value[0].address }}",
+            "subject": "={{ $json.subject }}",
+            "property_matched": "={{ $json.propertyId || '' }}",
+            "check_in": "={{ $json.checkIn || '' }}",
+            "check_out": "={{ $json.checkOut || '' }}",
+            "nights": "={{ $json.nights || '' }}",
+            "guests": "={{ $json.guests || '' }}",
+            "intent": "={{ $json.intent || '' }}",
+            "confidence": "={{ $json.confidence || '' }}",
+            "escalated": "={{ $json.shouldEscalate === true ? 'TRUE' : 'FALSE' }}",
+            "notes": "={{ $json.escalateReason || $json.filterReason || $json.matchReason || '' }}",
+            "decision": "={{ \n  $json.shouldEscalate ? 'escalated_' + ($json.escalateReason || 'unknown')\n  : $json.rulesViolated ? 'flagged_' + ($json.violations?.[0]?.type || 'rule_violation')\n  : $json.available === false ? 'drafted_unavailable'\n  : $json.priceCalculated === true ? 'priced_pending_template'\n  : $json.routingDecision === 'not_overnight' ? 'drafted_redirect_overnight'\n  : $json.propertyMatched === false ? 'escalated_property_not_recognized'\n  : $json.is_inquiry === false ? 'filtered_out_' + ($json.filterReason || 'unknown')\n  : 'processed'\n}}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "messageId",
+              "displayName": "messageId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "conversationId",
+              "displayName": "conversationId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "inbox",
+              "displayName": "inbox",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "from_email",
+              "displayName": "from_email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "subject",
+              "displayName": "subject",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "property_matched",
+              "displayName": "property_matched",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "check_in",
+              "displayName": "check_in",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "check_out",
+              "displayName": "check_out",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "nights",
+              "displayName": "nights",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "guests",
+              "displayName": "guests",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "intent",
+              "displayName": "intent",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "confidence",
+              "displayName": "confidence",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "decision",
+              "displayName": "decision",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "template_used",
+              "displayName": "template_used",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "escalated",
+              "displayName": "escalated",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "processing_seconds",
+              "displayName": "processing_seconds",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "notes",
+              "displayName": "notes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        640,
+        800
+      ],
+      "id": "47d47886-f2c9-4b04-b3af-6f4adcbb5461",
+      "name": "Mark As Seen1",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "q8xTHfKugl2MIXum",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1i54XfgLH9j3JrzOk0_Jc0eYRA8j1EKK0onVH4uCbIps",
+          "mode": "list",
+          "cachedResultName": "Grueter_Bot_Database",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1i54XfgLH9j3JrzOk0_Jc0eYRA8j1EKK0onVH4uCbIps/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1932231466,
+          "mode": "list",
+          "cachedResultName": "Log",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1i54XfgLH9j3JrzOk0_Jc0eYRA8j1EKK0onVH4uCbIps/edit#gid=1932231466"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "timestamp": "={{ $now.toISO() }}",
+            "messageId": "={{ $json.internetMessageId }}",
+            "conversationId": "={{ $json.conversationId }}",
+            "inbox": "={{ $json.to?.text || $json.to?.value?.[0]?.address || $json.to }}",
+            "from_email": "={{ $json.fromEmail || $json.from_emailaddress }}",
+            "subject": "={{ $json.subject }}",
+            "property_matched": "={{ $json.propertyId || '' }}",
+            "check_in": "={{ $json.checkIn || '' }}",
+            "check_out": "={{ $json.checkOut || '' }}",
+            "nights": "={{ $json.nights || '' }}",
+            "guests": "={{ $json.guests || '' }}",
+            "intent": "={{ $json.intent || '' }}",
+            "confidence": "={{ $json.confidence || '' }}",
+            "escalated": "={{ $json.shouldEscalate === true ? 'TRUE' : 'FALSE' }}",
+            "notes": "={{ $json.escalateReason || $json.filterReason || $json.matchReason || '' }}",
+            "decision": "={{    $json.shouldEscalate ? 'escalated_' + ($json.escalateReason || 'unknown')   : $json.rulesViolated ? 'flagged_' + ($json.violations?.[0]?.type || 'rule_violation')   : $json.available === false ? 'drafted_unavailable'   : $json.routingDecision === 'not_overnight' ? 'drafted_redirect_overnight'   : $json.propertyMatched === false ? 'escalated_property_not_recognized'   : $json.is_inquiry === false ? 'filtered_out_' + ($json.filterReason || 'unknown')   : 'processed' }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "messageId",
+              "displayName": "messageId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "conversationId",
+              "displayName": "conversationId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "inbox",
+              "displayName": "inbox",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "from_email",
+              "displayName": "from_email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "subject",
+              "displayName": "subject",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "property_matched",
+              "displayName": "property_matched",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "check_in",
+              "displayName": "check_in",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "check_out",
+              "displayName": "check_out",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "nights",
+              "displayName": "nights",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "guests",
+              "displayName": "guests",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "intent",
+              "displayName": "intent",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "confidence",
+              "displayName": "confidence",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "decision",
+              "displayName": "decision",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "template_used",
+              "displayName": "template_used",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "escalated",
+              "displayName": "escalated",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "processing_seconds",
+              "displayName": "processing_seconds",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "notes",
+              "displayName": "notes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        848,
+        -208
+      ],
+      "id": "0bb78ee4-90a0-40ca-bb96-d615e90d94b2",
+      "name": "Mark As Seen",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "q8xTHfKugl2MIXum",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get all upstream data\nconst data = $input.first().json;\n\n// ─── Recompute date-derived fields from ground truth ───\nconst checkIn = new Date(data.checkIn + (data.checkIn.includes('T') ? '' : 'T00:00:00Z'));\nconst checkOut = new Date(data.checkOut + (data.checkOut.includes('T') ? '' : 'T00:00:00Z'));\n\nconst dows = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];\nconst checkInDow = dows[checkIn.getUTCDay()];\nconst checkOutDow = dows[checkOut.getUTCDay()];\n\nconst ms = checkOut - checkIn;\nconst nights = Math.max(0, Math.round(ms / 86400000));\n\n// ─── EARLY EXIT: Location-only properties skip all booking rules ───\n// G Residence and any other event-only property has no nights/Sat-Sat concept.\n// A same-day shoot (nights=0) is normal here, not a violation.\nif (data.acceptsOvernight === false) {\n  return [{\n    json: {\n      ...data,\n      checkInDow,\n      checkOutDow,\n      nights,\n      rulesViolated: false,\n      violations: [],\n      minNightsRequired: null,\n      requiresSatToSat: false,\n      shouldEscalate: data.shouldEscalate === true,\n      escalateReason: data.escalateReason\n    }\n  }];\n}\n\n// ─── Determine the season for the check-in date ───\nconst month = checkIn.getUTCMonth() + 1;  // 1-12\nconst isJulAug = (month === 7 || month === 8);\n\n// ─── Apply the rules ───\nconst violations = [];\n\n// Rule 1: Saturday-to-Saturday in July & August (overnight properties only)\nconst requiresSatToSat = isJulAug && data.acceptsOvernight === true;\n\nif (requiresSatToSat) {\n  if (checkInDow !== 'Sat') {\n    violations.push({\n      type: 'sat_to_sat_check_in',\n      detail: `Check-in is ${checkInDow}, but July/August requires Saturday check-in.`\n    });\n  }\n  if (checkOutDow !== 'Sat') {\n    violations.push({\n      type: 'sat_to_sat_check_out',\n      detail: `Check-out is ${checkOutDow}, but July/August requires Saturday check-out.`\n    });\n  }\n  if (nights !== 7) {\n    violations.push({\n      type: 'sat_to_sat_duration',\n      detail: `Stay is ${nights} nights, but July/August requires exactly 7 nights.`\n    });\n  }\n}\n\n// Rule 2: Minimum nights\nconst minNights = isJulAug ? 7 : 4;\nif (nights < minNights) {\n  violations.push({\n    type: 'min_nights',\n    detail: `Stay is ${nights} nights, minimum for this period is ${minNights} nights.`\n  });\n}\n\nconst rulesViolated = violations.length > 0;\n\n// ─── Pull through everything + the rule-check verdict ───\nreturn [{\n  json: {\n    ...data,\n    // Overwrite with computed values (they are the truth)\n    checkInDow,\n    checkOutDow,\n    nights,\n    // Rule check verdict\n    rulesViolated,\n    violations,\n    minNightsRequired: minNights,\n    requiresSatToSat,\n    // If violated, escalation hint for downstream nodes\n    shouldEscalate: rulesViolated || data.shouldEscalate === true,\n    escalateReason: rulesViolated \n      ? (violations[0].type.startsWith('sat_to_sat') ? 'sat_to_sat_required' : 'min_nights_not_met')\n      : data.escalateReason\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -272,
+        976
+      ],
+      "id": "2d06c7a1-306b-4f2f-8079-159b58f496b0",
+      "name": "Booking Rules Check1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "a3619fc5-4edc-4d12-8ab3-0cb9c4aaad43",
+              "leftValue": "={{ $json.rulesViolated }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "false",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -96,
+        976
+      ],
+      "id": "f3a93c3e-1771-4c96-be3c-7735c3cd0681",
+      "name": "IF Rules OK?1"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get all upstream data\nconst data = $input.first().json;\n\n// ─── Recompute date-derived fields from ground truth ───\nconst checkIn = new Date(data.checkIn + (data.checkIn.includes('T') ? '' : 'T00:00:00Z'));\nconst checkOut = new Date(data.checkOut + (data.checkOut.includes('T') ? '' : 'T00:00:00Z'));\n\nconst dows = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];\nconst checkInDow = dows[checkIn.getUTCDay()];\nconst checkOutDow = dows[checkOut.getUTCDay()];\n\nconst ms = checkOut - checkIn;\nconst nights = Math.max(0, Math.round(ms / 86400000));\n\n// ─── Determine the season for the check-in date ───\nconst month = checkIn.getUTCMonth() + 1;  // 1-12\nconst isJulAug = (month === 7 || month === 8);\n\n// ─── Apply the rules ───\nconst violations = [];\n\n// Rule 1: Saturday-to-Saturday in July & August (overnight properties only)\nconst requiresSatToSat = isJulAug && data.acceptsOvernight === true;\n\nif (requiresSatToSat) {\n  if (checkInDow !== 'Sat') {\n    violations.push({\n      type: 'sat_to_sat_check_in',\n      detail: `Check-in is ${checkInDow}, but July/August requires Saturday check-in.`\n    });\n  }\n  if (checkOutDow !== 'Sat') {\n    violations.push({\n      type: 'sat_to_sat_check_out',\n      detail: `Check-out is ${checkOutDow}, but July/August requires Saturday check-out.`\n    });\n  }\n  if (nights !== 7) {\n    violations.push({\n      type: 'sat_to_sat_duration',\n      detail: `Stay is ${nights} nights, but July/August requires exactly 7 nights.`\n    });\n  }\n}\n\n// Rule 2: Minimum nights\nconst minNights = isJulAug ? 7 : 4;\nif (nights < minNights) {\n  violations.push({\n    type: 'min_nights',\n    detail: `Stay is ${nights} nights, minimum for this period is ${minNights} nights.`\n  });\n}\n\nconst rulesViolated = violations.length > 0;\n\n// ─── Pull through everything + the rule-check verdict ───\nreturn [{\n  json: {\n    ...data,\n    // Overwrite with computed values (they are the truth)\n    checkInDow,\n    checkOutDow,\n    nights,\n    // Rule check verdict\n    rulesViolated,\n    violations,\n    minNightsRequired: minNights,\n    requiresSatToSat,\n    // If violated, escalation hint for downstream nodes\n    shouldEscalate: rulesViolated || data.shouldEscalate === true,\n    escalateReason: rulesViolated \n      ? (violations[0].type.startsWith('sat_to_sat') ? 'sat_to_sat_required' : 'min_nights_not_met')\n      : data.escalateReason\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        32,
+        32
+      ],
+      "id": "03f3cbce-2719-4a36-8559-37cb4860d510",
+      "name": "Booking Rules Check"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "a3619fc5-4edc-4d12-8ab3-0cb9c4aaad43",
+              "leftValue": "={{ $json.rulesViolated }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "false",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        224,
+        32
+      ],
+      "id": "285dd94b-5b70-4735-94f0-71c150c5cf04",
+      "name": "IF Rules OK?"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1i54XfgLH9j3JrzOk0_Jc0eYRA8j1EKK0onVH4uCbIps",
+          "mode": "list",
+          "cachedResultName": "Grueter_Bot_Database",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1i54XfgLH9j3JrzOk0_Jc0eYRA8j1EKK0onVH4uCbIps/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1827650087,
+          "mode": "list",
+          "cachedResultName": "Pricing",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1i54XfgLH9j3JrzOk0_Jc0eYRA8j1EKK0onVH4uCbIps/edit#gid=1827650087"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "property_id",
+              "lookupValue": "={{ $('Booking Rules Check1').item.json.propertyId }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        80,
+        960
+      ],
+      "id": "30dc191c-158a-4464-9edd-bb37d59e9e0f",
+      "name": "Get row(s) in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "q8xTHfKugl2MIXum",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Pull all pricing rows that came from Fetch Pricing Rows\nconst pricingRows = $input.all().map(item => item.json);\n\n// Pull the validated booking data from upstream\nconst data = $('Booking Rules Check1').item.json;\n\n// ─── Defensive: skip pricing for location-only properties ───\n// Same-day shoots / events have bespoke pricing; we don't auto-calculate.\nif (data.acceptsOvernight === false) {\n  return [{\n    json: {\n      ...data,\n      totalPrice: null,\n      pricePerNightAvg: null,\n      priceBreakdown: [],\n      priceCalculated: false,\n      pricingError: 'event_pricing_bespoke',\n      pricingNote: 'Event/shoot pricing requires manual quote — not auto-calculated.'\n    }\n  }];\n}\n\n// ─── Defensive: ensure we have pricing data to work with ───\nif (!pricingRows.length) {\n  return [{\n    json: {\n      ...data,\n      totalPrice: null,\n      pricePerNightAvg: null,\n      priceBreakdown: [],\n      priceCalculated: false,\n      pricingError: 'no_pricing_rows_found',\n      shouldEscalate: true,\n      escalateReason: 'no_pricing_data',\n      pricingNote: `No pricing rows found in Sheet for ${data.propertyId}.`\n    }\n  }];\n}\n\n// ─── Walk night-by-night through the stay ───\nconst checkIn = new Date(data.checkIn + 'T00:00:00Z');\nconst checkOut = new Date(data.checkOut + 'T00:00:00Z');\n\nlet total = 0;\nconst breakdown = [];\nconst unmatchedNights = [];\n\n// Iterate one night at a time. Each iteration represents ONE night booked.\n// (Check-out day is exclusive — guest doesn't pay for the day they leave.)\nfor (let d = new Date(checkIn); d < checkOut; d.setUTCDate(d.getUTCDate() + 1)) {\n  const month = d.getUTCMonth() + 1;\n  const day = d.getUTCDate();\n  const dateStr = d.toISOString().slice(0, 10);\n\n  // Find the pricing row that covers this specific date\n  const matchedRow = pricingRows.find(r => {\n    const sm = Number(r.start_month);\n    const sd = Number(r.start_day);\n    const em = Number(r.end_month);\n    const ed = Number(r.end_day);\n    \n    // Year-wrap case (e.g., Christmas/NYE: Dec 23 → Jan 3)\n    // start_month > end_month means the range crosses Dec→Jan\n    if (sm > em) {\n      const afterStart = (month > sm) || (month === sm && day >= sd);\n      const beforeEnd = (month < em) || (month === em && day <= ed);\n      return afterStart || beforeEnd;\n    }\n    \n    // Normal case: range stays within one year\n    const afterStart = (month > sm) || (month === sm && day >= sd);\n    const beforeEnd = (month < em) || (month === em && day <= ed);\n    return afterStart && beforeEnd;\n  });\n\n  if (matchedRow) {\n    const nightlyRate = Number(matchedRow.price_per_night);\n    if (isNaN(nightlyRate)) {\n      unmatchedNights.push({ date: dateStr, reason: 'rate_is_not_a_number' });\n    } else {\n      total += nightlyRate;\n      breakdown.push({\n        date: dateStr,\n        period: matchedRow.period_label,\n        rate: nightlyRate\n      });\n    }\n  } else {\n    unmatchedNights.push({ date: dateStr, reason: 'no_period_matches' });\n  }\n}\n\n// ─── Handle case where some nights couldn't be priced ───\nif (unmatchedNights.length > 0) {\n  return [{\n    json: {\n      ...data,\n      totalPrice: null,\n      pricePerNightAvg: null,\n      priceBreakdown: breakdown,\n      priceCalculated: false,\n      pricingError: 'incomplete_pricing_coverage',\n      unmatchedNights,\n      shouldEscalate: true,\n      escalateReason: 'pricing_gap',\n      pricingNote: `${unmatchedNights.length} of ${data.nights} nights could not be priced. Sheet may have a gap in date coverage.`\n    }\n  }];\n}\n\n// ─── Success: return the total + breakdown ───\nconst pricePerNightAvg = data.nights > 0 \n  ? Math.round(total / data.nights) \n  : 0;\n\nreturn [{\n  json: {\n    ...data,\n    totalPrice: total,\n    pricePerNightAvg,\n    priceBreakdown: breakdown,\n    priceCalculated: true,\n    pricingError: null,\n    currency: data.currency || 'EUR'\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1344,
+        1200
+      ],
+      "id": "9193c134-6544-4e9c-9caf-0c61b7fcc334",
+      "name": "Calculate Price1"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\n\n// ─── Extract the inputs we need to decide on ───\nconst acceptsOvernight = data.acceptsOvernight === true;\nconst intent = data.intent;\nconst available = data.available;\nconst priceCalculated = data.priceCalculated;\nconst pricingError = data.pricingError;\nconst rulesViolated = data.rulesViolated === true;\nconst violations = data.violations || [];\nconst askedDetails = data.askedForFullDetails === true ||\n                     (data.askedForServices === true && data.askedForPaymentTerms === true);\n\n// Booking-type intents (vs holiday-stay)\nconst isEventIntent = ['photo_shoot', 'video_shoot', 'event_rental', 'mixed'].includes(intent);\nconst isHolidayStay = intent === 'holiday_stay';\n\n// ─── Detect rule-violation type (when applicable) ───\n// First Sat-Sat violation takes precedence — it's the bigger ask of the guest\nconst hasSatToSatViolation = violations.some(v => \n  v.type && v.type.startsWith('sat_to_sat')\n);\nconst hasMinNightsViolation = violations.some(v => \n  v.type === 'min_nights'\n);\n\nlet scenario;\nlet scenarioReason;\nlet templateSetOverride = null;  // some scenarios use the 'shared' template_set\n\n// ─── Decision tree ───\n\n// Case 1: Property is unavailable for the requested dates\n// (Wins over rule violations — no point asking for Sat-Sat dates if the dates are taken anyway)\nif (available === false) {\n  scenario = 'unavailable';\n  scenarioReason = 'iCal conflict on requested dates';\n}\n\n// Case 2: Sat-Sat rule violated (Jul/Aug, overnight property)\n// Per scope: ask the guest for valid Sat-Sat dates. Don't escalate yet.\nelse if (rulesViolated && hasSatToSatViolation) {\n  scenario = 'sat_to_sat_required';\n  scenarioReason = 'Jul/Aug requires Sat-Sat — asking guest to revise dates';\n  templateSetOverride = 'shared';\n}\n\n// Case 3: Min-nights rule violated\nelse if (rulesViolated && hasMinNightsViolation) {\n  scenario = 'min_nights_not_met';\n  scenarioReason = `Below minimum stay (${data.minNightsRequired} nights required) — asking guest to extend or flex`;\n  templateSetOverride = 'shared';\n}\n\n// Case 4: Rules violated for some other reason — fall back to escalation\nelse if (rulesViolated) {\n  scenario = 'escalate';\n  scenarioReason = `Rules violated but type unrecognized: ${violations.map(v => v.type).join(', ')}`;\n}\n\n// Case 5: Location-only property + holiday stay request\nelse if (!acceptsOvernight && isHolidayStay) {\n  scenario = 'not_overnight';\n  scenarioReason = 'Location-only property, guest asked for holiday stay';\n}\n\n// Case 6: Event/shoot intent (any property)\nelse if (isEventIntent) {\n  scenario = 'event_inquiry';\n  scenarioReason = 'Event or shoot request — needs production details before quote';\n}\n\n// Case 7: Overnight + holiday stay + pricing failed\nelse if (acceptsOvernight && isHolidayStay && priceCalculated === false) {\n  scenario = 'available_no_rate';\n  scenarioReason = `Pricing not auto-calculable: ${pricingError || 'unknown'}`;\n}\n\n// Case 8: Overnight + holiday stay + pricing OK + asked for full details\nelse if (acceptsOvernight && isHolidayStay && priceCalculated === true && askedDetails) {\n  scenario = 'available_detailed';\n  scenarioReason = 'Available + rate calculated + guest asked for services/payment terms';\n}\n\n// Case 9: Overnight + holiday stay + pricing OK + just asked \"is it free?\"\nelse if (acceptsOvernight && isHolidayStay && priceCalculated === true) {\n  scenario = 'available_simple';\n  scenarioReason = 'Available + rate calculated + guest asked simple question only';\n}\n\n// Case 10: Anything we didn't anticipate — escalate\nelse {\n  scenario = 'escalate';\n  scenarioReason = `Unhandled combination: overnight=${acceptsOvernight}, intent=${intent}, available=${available}, priceCalculated=${priceCalculated}`;\n}\n\n// ─── Compose the template_id we'll look up next ───\nconst templateSet = templateSetOverride || data.templateSet || 'shared';\nconst templateId = `${templateSet}_${scenario}`;\n\n// ─── Return passthrough + scenario decision ───\nreturn [{\n  json: {\n    ...data,\n    scenario,\n    scenarioReason,\n    templateId,\n    templateSetUsed: templateSet,\n    shouldEscalate: scenario === 'escalate' || data.shouldEscalate === true,\n    escalateReason: scenario === 'escalate' \n      ? (data.escalateReason || 'unhandled_scenario')\n      : data.escalateReason\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1184,
+        1200
+      ],
+      "id": "a135716c-5d90-4e69-9b93-455bd6ce15a4",
+      "name": "Build Scenario1"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1i54XfgLH9j3JrzOk0_Jc0eYRA8j1EKK0onVH4uCbIps",
+          "mode": "list",
+          "cachedResultName": "Grueter_Bot_Database",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1i54XfgLH9j3JrzOk0_Jc0eYRA8j1EKK0onVH4uCbIps/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 750408601,
+          "mode": "list",
+          "cachedResultName": "Templates",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1i54XfgLH9j3JrzOk0_Jc0eYRA8j1EKK0onVH4uCbIps/edit#gid=750408601"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "template_id",
+              "lookupValue": "={{ $json.templateId }}"
+            },
+            {
+              "lookupColumn": "language",
+              "lookupValue": "={{ $json.language}}"
+            }
+          ]
+        },
+        "options": {
+          "returnFirstMatch": true
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -976,
+        1200
+      ],
+      "id": "1a2c04bb-9211-4e0a-8ac7-1864fe5c5045",
+      "name": "Fetch Template1",
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "q8xTHfKugl2MIXum",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Pull what came back from Fetch Template\nconst templateRow = $input.first().json;\n\n// Pull the upstream context (everything we've established before)\nconst upstream = $('Build Scenario1').item.json;\n\n// ─── Did the lookup find a row? ───\n// When the Sheets node finds nothing, the row will lack expected fields\nconst templateFound = !!(templateRow && templateRow.template_id && templateRow.body);\n\nif (!templateFound) {\n  // No matching template — this means our Build Scenario produced a templateId\n  // that doesn't exist in the Sheet. Real bug: either Sheet is missing the row,\n  // or the templateId formatting drifted. Escalate to humans.\n  return [{\n    json: {\n      ...upstream,\n      templateFound: false,\n      templateSubjectRaw: null,\n      templateBodyRaw: null,\n      templateLanguage: null,\n      shouldEscalate: true,\n      escalateReason: 'template_missing',\n      templateMissingNote: `No template found for templateId=\"${upstream.templateId}\" language=\"${upstream.language || 'en'}\". Add this row to the Templates sheet.`\n    }\n  }];\n}\n\n// ─── Found it — pass forward with raw template content ───\nreturn [{\n  json: {\n    ...upstream,\n    templateFound: true,\n    templateSubjectRaw: templateRow.subject || '',\n    templateBodyRaw: templateRow.body || '',\n    templateLanguage: templateRow.language || 'en',\n    templateMatchedId: templateRow.template_id\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -768,
+        1200
+      ],
+      "id": "0e6e7cd3-6bcd-4719-9dd4-03f98375f844",
+      "name": "Validate Template Found1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "efbcac11-5700-4225-9f3a-fbbb37e29b36",
+              "leftValue": "={{ $json.templateFound }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -560,
+        1200
+      ],
+      "id": "4e2aa092-c50d-4758-a016-54599602f4ad",
+      "name": "IF Template Found1"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\n\n// ─── Pull the raw template content ───\nconst subjectRaw = data.templateSubjectRaw || '';\nconst bodyRaw = data.templateBodyRaw || '';\n\n// ─── Compute derived values for substitution ───\n\n// Guest first name — extract from \"daytor ramaj\" → \"daytor\"\n// Capitalize for politeness even if the email had it lowercase\nconst fromName = (data.fromName || '').trim();\nconst guestFirstName = fromName \n  ? fromName.split(/\\s+/)[0].replace(/^./, c => c.toUpperCase())\n  : 'there';  // fallback when sender has no name in their email signature\n\n// Property name — prefer canonical from the Properties sheet, not the AI's extraction\nconst propertyName = data.propertyCanonicalName || data.propertyName || 'the property';\n\n// Price formatting — European convention: €35.805 (period as thousands separator)\n// Or skip entirely if no price was calculated\nlet priceFormatted = '';\nif (data.priceCalculated === true && typeof data.totalPrice === 'number') {\n  priceFormatted = '€' + data.totalPrice.toLocaleString('de-DE', {\n    minimumFractionDigits: 0,\n    maximumFractionDigits: 0\n  });\n}\n\n// iCal URL — for unavailable templates that include the link\nconst icalUrl = data.propertyIcalUrl || '';\n\n// Nights and min_nights — for the min_nights template\nconst nights = data.nights ?? '';\nconst minNights = data.minNightsRequired ?? '';\n\n// Original subject — for \"Re: {{original_subject}}\" style replies\nlet originalSubject = data.subject || 'Inquiry';\n// Strip existing Re: prefixes so we don't accumulate \"Re: Re: Re:\"\noriginalSubject = originalSubject.replace(/^(Re:\\s*)+/i, '');\n\n// ─── Substitution map ───\nconst tokens = {\n  guest_first_name: guestFirstName,\n  property_name: propertyName,\n  price: priceFormatted,\n  ical_url: icalUrl,\n  nights: nights,\n  min_nights: minNights,\n  original_subject: originalSubject,\n  // Add more here as templates evolve\n};\n\n// ─── Substitute and track which tokens fired ───\nconst placeholdersUsed = [];\nconst placeholdersMissing = [];\n\nfunction substitute(text, tokenMap) {\n  return text.replace(/\\{\\{\\s*(\\w+)\\s*\\}\\}/g, (full, key) => {\n    if (key in tokenMap) {\n      const value = tokenMap[key];\n      if (value === '' || value === null || value === undefined) {\n        placeholdersMissing.push(key);\n        return full;  // leave the {{token}} in place so it's visible the value was missing\n      }\n      placeholdersUsed.push(key);\n      return String(value);\n    }\n    // Unknown token — leave in place, flag it\n    placeholdersMissing.push(key);\n    return full;\n  });\n}\n\nconst replySubject = substitute(subjectRaw, tokens);\nconst replyBody = substitute(bodyRaw, tokens);\n\n// ─── HTML version of the body for email clients that prefer it ───\n// Convert plain text paragraphs to <p> blocks. Templates use \\n\\n for paragraph breaks.\nconst replyBodyHtml = replyBody\n  .split(/\\n\\s*\\n/)\n  .map(p => `<p>${p.trim().replace(/\\n/g, '<br>')}</p>`)\n  .join('\\n');\n\n// ─── Detect critical missing placeholders (escalation triggers) ───\n// If a CRITICAL token is missing in a draft, escalate instead of sending broken text\nconst criticalIfBlank = ['property_name', 'guest_first_name'];\nconst criticalMissing = [...new Set(placeholdersMissing)].filter(p => \n  criticalIfBlank.includes(p)\n);\n\n// Price is critical only for templates that explicitly use it\nconst usedPriceToken = /\\{\\{\\s*price\\s*\\}\\}/.test(bodyRaw);\nconst priceCritical = usedPriceToken && !priceFormatted;\n\nconst hasCriticalGap = criticalMissing.length > 0 || priceCritical;\n\nreturn [{\n  json: {\n    ...data,\n    replySubject,\n    replyBody,\n    replyBodyHtml,\n    placeholdersUsed: [...new Set(placeholdersUsed)],\n    placeholdersMissing: [...new Set(placeholdersMissing)],\n    hasCriticalPlaceholderGap: hasCriticalGap,\n    shouldEscalate: hasCriticalGap || data.shouldEscalate === true,\n    escalateReason: hasCriticalGap \n      ? 'critical_placeholder_missing' \n      : data.escalateReason\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -368,
+        1152
+      ],
+      "id": "14de5bcb-10a5-4f15-b161-30c67cfd543d",
+      "name": "Build Reply Body1"
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{ $('Email Trigger (IMAP)1').item.json.headers.to }}",
+        "toEmail": "={{ $('Email Trigger (IMAP)1').item.json.headers.to }}",
+        "subject": "={{ '[DRAFT] ' + $json.replySubject + ' — ' + $json.propertyCanonicalName + ' — ' + $json.checkIn + ' to ' + $json.checkOut }}",
+        "emailFormat": "both",
+        "text": "==━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nINQUIRY SUMMARY\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nFrom: {{ $json.fromName }} <{{ $json.fromEmail }}>\nProperty: {{ $json.propertyCanonicalName }}\nDates: {{ $json.checkIn }} → {{ $json.checkOut }} ({{ $json.nights }} nights)\nGuests: {{ $json.guests || 'not specified' }}\nScenario: {{ $json.scenario }}\nPrice calculated: {{ $json.priceCalculated ? '€' + $json.totalPrice : 'N/A' }}\nConfidence: {{ $json.confidence }}\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nDRAFTED REPLY (copy/paste into a reply to the guest)\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nTo: {{ $json.fromEmail }}\nSubject: {{ $json.replySubject }}\n\n{{ $json.replyBody }}\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nORIGINAL GUEST MESSAGE\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nFrom: {{ $json.fromName }} <{{ $json.fromEmail }}>\nDate: {{ $json.receivedDate }}\nSubject: {{ $json.subject }}\n\n{{ $json.bodyPreview }}",
+        "html": "=<!DOCTYPE html>\n<html>\n<body style=\"font-family: -apple-system, Segoe UI, sans-serif; max-width: 720px; margin: 0; padding: 20px; color: #333;\">\n\n<div style=\"background: #f4f7fa; border-left: 4px solid #2c5282; padding: 14px 18px; margin-bottom: 24px; border-radius: 4px;\">\n  <div style=\"font-weight: 600; color: #2c5282; margin-bottom: 8px; text-transform: uppercase; font-size: 12px; letter-spacing: 0.5px;\">Inquiry Summary</div>\n  <table style=\"width: 100%; font-size: 14px;\">\n    <tr><td style=\"padding: 2px 0; color: #666;\">From:</td><td>{{ $json.fromName }} &lt;{{ $json.fromEmail }}&gt;</td></tr>\n    <tr><td style=\"padding: 2px 0; color: #666;\">Property:</td><td><strong>{{ $json.propertyCanonicalName }}</strong></td></tr>\n    <tr><td style=\"padding: 2px 0; color: #666;\">Dates:</td><td>{{ $json.checkIn }} → {{ $json.checkOut }} ({{ $json.nights }} nights)</td></tr>\n    <tr><td style=\"padding: 2px 0; color: #666;\">Guests:</td><td>{{ $json.guests || 'not specified' }}</td></tr>\n    <tr><td style=\"padding: 2px 0; color: #666;\">Scenario:</td><td>{{ $json.scenario }}</td></tr>\n    <tr><td style=\"padding: 2px 0; color: #666;\">Price:</td><td>{{ $json.priceCalculated ? '<strong>€' + $json.totalPrice + '</strong>' : '<em>not calculated</em>' }}</td></tr>\n    <tr><td style=\"padding: 2px 0; color: #666;\">Confidence:</td><td>{{ $json.confidence }}</td></tr>\n  </table>\n</div>\n\n<div style=\"border: 1px solid #ddd; padding: 18px; border-radius: 4px; margin-bottom: 24px;\">\n  <div style=\"font-weight: 600; color: #2c5282; margin-bottom: 12px; text-transform: uppercase; font-size: 12px; letter-spacing: 0.5px;\">Drafted Reply</div>\n  <div style=\"font-size: 13px; color: #888; margin-bottom: 8px;\">\n    To: <strong>{{ $json.fromEmail }}</strong><br>\n    Subject: <strong>{{ $json.replySubject }}</strong>\n  </div>\n  <div style=\"border-top: 1px solid #eee; margin-top: 12px; padding-top: 12px;\">\n    {{ $json.replyBodyHtml }}\n  </div>\n</div>\n\n<div style=\"background: #fafafa; border-left: 3px solid #ccc; padding: 14px 18px; font-size: 13px; color: #666;\">\n  <div style=\"font-weight: 600; margin-bottom: 8px; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px;\">Original Guest Message</div>\n  <div style=\"font-size: 12px; color: #888; margin-bottom: 10px;\">\n    {{ $json.fromName }} &lt;{{ $json.fromEmail }}&gt; · {{ $json.receivedDate }}\n  </div>\n  <div style=\"white-space: pre-wrap; font-family: monospace; font-size: 12px; color: #555;\">\n{{ $json.bodyPreview }}\n  </div>\n</div>\n\n</body>\n</html>",
+        "options": {
+          "appendAttribution": false,
+          "ccEmail": "={{ $('Email Trigger (IMAP)1').item.json.headers.to }}",
+          "replyTo": "={{ $json.fromEmail }}"
+        }
+      },
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        -144,
+        1152
+      ],
+      "id": "8522d9c3-5d10-4a67-933f-7414ca7c63fd",
+      "name": "Send an Email",
+      "webhookId": "5edecaa0-4c5b-42c8-9cd8-0c362029738a",
+      "credentials": {
+        "smtp": {
+          "id": "HkdxLMTdOfRpXd37",
+          "name": "SMTP account"
+        }
+      }
+    }
+  ],
+  "pinData": {
+    "Email Trigger (IMAP)": [
+      {
+        "json": {
+          "textHtml": "<div dir=\"ltr\"><p>Dear Alix,</p><p>I hope you are well!</p><p>We received a request for the dates 06/JUNE/2026 - 04/JULY/2026. Is Villa Colibri 5 available?</p><p><b>The dates are flexible. The client is looking for an option for 1 or 2 months in June/July. Can you please share the availability for these two months?</b></p><p>The name of the client is Unknown and itâs a group of 2 adults</p><p>Please can you confirm the availability of the villa by clicking on <b>this calendar link</b>? You can also mark any other booked dates by clicking &quot;See full calendar&quot;.</p><p>If the dates are available, please can you confirm the official rate of <b>â¬ 107,714.29</b> including our 20.00% commission, as well as the following information regarding the services and terms of payment?</p><p><b>Services included</b>\r\nWelcome basket\r\nHousekeeping service (every other day)\r\nWeekly linen change\r\nW... maintenance</p><p><b>Extra services</b>\r\nPrivate chef</p></div>\r\n",
+          "textPlain": "Dear Alix,\r\n\r\nI hope you are well!\r\n\r\nWe received a request for the dates 06/JUNE/2026 - 04/JULY/2026. Is Villa\r\nColibri 5 available?\r\n\r\n*The dates are flexible. The client is looking for an option for 1 or 2\r\nmonths in June/July. Can you please share the availability for these two\r\nmonths?*\r\n\r\nThe name of the client is Unknown and itâs a group of 2 adults\r\n\r\nPlease can you confirm the availability of the villa by clicking on *this\r\ncalendar link*? You can also mark any other booked dates by clicking \"See\r\nfull calendar\".\r\n\r\nIf the dates are available, please can you confirm the official rate of *â¬\r\n107,714.29* including our 20.00% commission, as well as the following\r\ninformation regarding the services and terms of payment?\r\n\r\n*Services included* Welcome basket Housekeeping service (every other day)\r\nWeekly linen change W... maintenance\r\n\r\n*Extra services* Private chef\r\n",
+          "metadata": {
+            "return-path": "<daytorramaj@gmail.com>",
+            "authentication-results": " kundenserver.de; dkim=pass header.i=@gmail.com",
+            "received": "from mail-ot1-f47.google.com ([209.85.210.47]) by mx.kundenserver.de (mxeue101 [217.72.192.67]) with ESMTPS (Nemesis) id 1M44GM-1wKpem0Qhk-00CR09 for <office@grueter-residence.com>; Thu, 07 May 2026 05:44:12 +0200",
+            "arc-seal": "i=1; a=rsa-sha256; t=1778125450; cv=none;        d=google.com; s=arc-20240605;        b=SxhFYf4hhrXLZSnqJU1XGNsmZObooIarI6NN9vIPtOYeXC0H668Hl+McnPtzxq50B0         fw0uKdcQPdi4Vdio0HEcdVj0U463rSHenK4CWKu5Lqr7XFrsEU9oT7bhwwD3wxdCR2XK         5OsoiKMjczz6/oMyK5m9NluH6C4Oh2NP8f7ROcNRR8ns9WapAGJgM167m6aDtHXo6gE9         YCaYjZDzhz3kNLqakYnDRhZNm/aMDNq3e5GY3205yJz1dmEKGH9dvqhSuBBHwZwmh25L         emE+YMwhEs63mtWHJktcZE2/b6yquYOGSXsGXK+i5NR8tUoq2vUAkYj3EoDqJ/Jd6ZWH         Podw==",
+            "arc-message-signature": "i=1; a=rsa-sha256; c=relaxed/relaxed; d=google.com; s=arc-20240605;        h=to:subject:message-id:date:from:mime-version:dkim-signature;        bh=tfsirkKXBrpgdWaLyh9+Ni4RmlY3KOGLF18dDkW987I=;        fh=vMN6rMGxWbenDNa0Mps3QNSJmOjbDus6ir0G79H329E=;        b=QdBlPYRMOovmMemN6wGFyEiv4P6gdYAYYdLiw8NwX6R8QytaeMKRSQEEiLiAneUsMF         TBJXWooXZphnphSNf1QImmoo4bgFn/6caiH/NWY74BmdTKSDYeKeqXWSkOjdUUpm4Q3S         4brBOQ1FYCv3PEHOetmyDXmX/JsbZXMBpGmYIxKK/n+Amn4iJeBIFOfCfu6ZqBWNdunw         nIn2A4pesHwcwdLvUr+ZZz9RPbjQ6i8WNCa2GAR9QgnLbMwpFJni7LalRSV351/icNEq         VIXSTxd1ou3KddQ6wHwWFSA/hi6CcMN1Fbqh7QgkUKCtW7pioPlML2v6l0cXG54EvEF8         /LUQ==;        darn=grueter-residence.com",
+            "arc-authentication-results": "i=1; mx.google.com; arc=none",
+            "dkim-signature": "v=1; a=rsa-sha256; c=relaxed/relaxed;        d=gmail.com; s=20251104; t=1778125450; x=1778730250; darn=grueter-residence.com;        h=to:subject:message-id:date:from:mime-version:from:to:cc:subject         :date:message-id:reply-to;        bh=tfsirkKXBrpgdWaLyh9+Ni4RmlY3KOGLF18dDkW987I=;        b=E7VSIELmuFQkJc25Rjb1SFgZCcEDtCAE0AhXNKDiQj2/JOKETrV8Ol4q/6BIfpT7B9         JuO0R0E+PBzLddCNu3gdR/zzpaHlB5HSbnCctof5wG7lhUvVUDjQ8CfwwvNBwwmwKk33         QXEAXvJZs5KYBSg2RYc/iLqhBnmwzdYcsTQZZvc2/El4F1qz7Y1kTqQIzRCHhA1/kQtb         Tk1bz4jRB30jch+RAtmBWqu4APxJfQ4JtVCINvD+3ss0XQOCMaVHp+mg0owXnTO2XrFk         FuAUW1aNyy2vALJKsBCx/wqHNV1dZNra+nGmupCERdhDV193PPbqvil0sIdPrOM3N9BM         ONpw==",
+            "x-google-dkim-signature": "v=1; a=rsa-sha256; c=relaxed/relaxed;        d=1e100.net; s=20251104; t=1778125450; x=1778730250;        h=to:subject:message-id:date:from:mime-version:x-gm-gg         :x-gm-message-state:from:to:cc:subject:date:message-id:reply-to;        bh=tfsirkKXBrpgdWaLyh9+Ni4RmlY3KOGLF18dDkW987I=;        b=LqROsNPXtnYwSsZNk+KSqpsTU9XZFWuSclEw+oaeUNPUj07gI0Zi0eb0ioIdsyCN+G         dvS3v4V43II0SEsqrnvBA0J5T/JDlskKvWk56ozZKNJ091ImEtnqr2dRMESVidHIC9zh         w6sbyV9C1BVSqXEmzfIkIdjB/M1xshXroB409GcFlbaDd+M7RNrii1i3o16BvyI81PHk         vGRckz0tQN2fyqpVMqXLR8HxvvxICYsDt9fKZOjEqGwje9BjmjR3nlspsIjBdGvaDydA         u0xMoVsmsGT7xTXZd/pDrG75A7BekSHVvddn8finU22B55i87SvDaNghTd2nF+pvYQTQ         UZnQ==",
+            "x-gm-message-state": "AOJu0Yxg1NHaZhqhr8dc1Ea+A3p5+F0XV/Hz5lVp72sNU6JxpbWvNlv+\t/8UH87jA2gTRtYD78izyGVQ6HSVQPza2tNCX2yWHvItSLlth+Z7leGSHn4Cqa+ygtB6RykphwC+\tkfn7l8tlwwYoWzMYhIJE9GpKKWlQmyBuPym5RN2DolA==",
+            "x-gm-gg": "AeBDieuxbSzeeDQJf89x4+Wn/d8XJf03Ur5p2xr6eStfEPlIqmaY6rqtnKHGQC+CFds\tFV3+58wSy+devXoe1EFkN5B1NRCmLjAExPx7BEujca0jiKw5rft2wB9O+w+hj4i6HMlQDWyz8tw\tcd0I+a424KcVQTFY+yJSzZvn0fjohTCXhfIRojTL3pw9VRi5cYZ0Ze4U2GnB5/8hjPeV3LI440q\tKC9ed00QDW7qby62tzArVetrr2EmVKYK59EWW8waB/rW/sZYLHNin5wm+3HiC0kzVT7+fNK3XTJ\t4+mAixDhH+zwsPPlMwfi4Q==",
+            "x-received": "by 2002:a05:6820:1794:b0:696:32ad:e894 with SMTP id 006d021491bc7-69998cbe086mr3440376eaf.23.1778125450256; Wed, 06 May 2026 20:44:10 -0700 (PDT)",
+            "mime-version": "1.0",
+            "x-gm-features": "AVHnY4IUN0AYCXG4CVW0f4uQv-5q7iPaYv5i1ngvg-MOCrVSXb81wh-PjrjTRvo",
+            "message-id": "<CAE38MVwR5=i-r3Tg+jWPZZos8ox--uhm4sk9sYQSMsveSZW8gQ@mail.gmail.com>",
+            "content-type": "multipart/alternative; boundary=\"000000000000d424ed06513217e7\"",
+            "envelope-to": "<office@grueter-residence.com>",
+            "ui-inboundreport": "unknown:2;M01:P0:lhUmoWM8CNY=;4SAulL/Yh/oPNEo0ZsFt+ha/w8DQ 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 qTtqguIUXOPAkgZpMRCxM7zFKHhKwVxMjPhy"
+          },
+          "attributes": {
+            "uid": 5433
+          },
+          "from": "daytor ramaj <daytorramaj@gmail.com>",
+          "date": "Thu, 7 May 2026 04:44:00 +0100",
+          "subject": "Availability Request Haute",
+          "to": "office@grueter-residence.com"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ],
+    "AI Agent": [
+      {
+        "json": {
+          "output": "```json\n{\n  \"is_inquiry\": true,\n  \"intent\": \"holiday_stay\",\n  \"property_name\": \"Villa Colibrí\",\n  \"check_in\": \"2026-06-06\",\n  \"check_out\": \"2026-07-04\",\n  \"nights\": 28,\n  \"check_in_dow\": \"Sat\",\n  \"check_out_dow\": \"Sat\",\n  \"guests\": 2,\n  \"is_b2b_agent\": true,\n  \"client_quoted_rate\": 107714.29,\n  \"asked_for_services\": true,\n  \"asked_for_payment_terms\": true,\n  \"asked_for_full_details\": true,\n  \"questions_in_email\": [\n    \"Is Villa Colibri 5 available for 06/JUNE/2026 - 04/JULY/2026?\",\n    \"Can you share availability for June/July 2026 for 1 or 2 months?\",\n    \"Can you confirm the official rate of €107,714.29 including 20% commission?\",\n    \"What services are included?\",\n    \"What are the payment terms?\"\n  ],\n  \"language\": \"en\",\n  \"confidence\": \"high\",\n  \"missing_fields\": [],\n  \"notes\": \"B2B agent inquiry from Daytor Ramaj on behalf of client 'Unknown'. Initial request is for 28 nights (June 6 - July 4, 2026), but agent explicitly states dates are flexible and client seeks 1-2 month rental in June/July period. Agent requests confirmation of €107,714.29 rate (inclusive of their 20% commission), asks for services included/extra services available, and payment terms. Email explicitly asks for full details including services and payment terms.\"\n}\n```"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ],
+    "Email Trigger (IMAP)1": [
+      {
+        "json": {
+          "headers": {
+            "return-path": "Return-Path: <daytorramaj@gmail.com>",
+            "authentication-results": "Authentication-Results: kundenserver.de; dkim=pass header.i=@gmail.com\r\n header.s=20251104; spf=pass smtp.mailfrom=daytorramaj@gmail.com; dmarc=pass\r\n header.from=gmail.com policy.dmarc=none; iprev=pass\r\n policy.iprev=209.85.210.45",
+            "received": "Received: by mail-ot1-f45.google.com with SMTP id 46e09a7af769-7dbec19732eso1450927a34.3\r\n        for <info@grueteroffice.com>; Fri, 08 May 2026 01:37:48 -0700 (PDT)",
+            "arc-seal": "ARC-Seal: i=1; a=rsa-sha256; t=1778229467; cv=none;\r\n        d=google.com; s=arc-20240605;\r\n        b=Mt4JbMhIRV7bhVUNV/I61sbYGaYD8xhf2XF+LCI3GTxzMMrti1Qxc3Hfd55fl1YuuR\r\n         SWwlz0kyXNrZkg2r7rK61Vh30+sD1zoDn3vjgY4CGlvVtKrlrj7Av7yphYDwcpsqKTHi\r\n         tN/EIqcPF8nLCmV4oDDJr3KAPnQeAL/406MaGp3eoOjmMt5G57GnyQNdE/0YKNVaEPZB\r\n         tcQd7R+j6EorKCDy6DfYgq1Vg+L6gNuES5MicZh0GdSs2F2XVjmBiM8FrhzoC42Pn/Vh\r\n         x5+qFpbb27LYiTZKFBH6hsUTSIEC1KykrLmXCN4Y/XMbm+pJqItBtGwnwELSXPYy+3M0\r\n         x4ZA==",
+            "arc-message-signature": "ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=google.com; s=arc-20240605;\r\n        h=to:subject:message-id:date:from:mime-version:dkim-signature;\r\n        bh=YtId/6ORgfEfAccg3aQsODoP9nay9wGHfejcJkVE3Vs=;\r\n        fh=vl0b685HB9xDuljDKLyW2abGX504sXCkHF1UZOFAHss=;\r\n        b=Yd8IpzA4yq77pLVnB/O2XkiaGa8srZ9JMR3xVVeyno7Gb5ucf/7krVZXZ6RMdVgVMi\r\n         B1f6Dkkbt1YL3DivTOdEm0D2eN9SuyslKEnGu3JSqKA+Mn1wRmV4+MdKOd+dD1fF4SZY\r\n         t1TRcwoHoGxegafC83fzjVBBuoJsFWaj3A8eRBcay6k4m9wgjiGLD1mtR++IQrMvqpQC\r\n         tvDV8RU9CpafvSQ8z/CPBxxVwu5XcUnNRvj+/pMY/QqjGn2j+0gcsCzYdfu2Ta8FBsuM\r\n         +OunAxhE3KVldz1av0RLi+cAEID6lRrSd5n6AManFOD/+dIyU/Y7S4uWMiv1Zsn/yt9D\r\n         FlNA==;\r\n        darn=grueteroffice.com",
+            "arc-authentication-results": "ARC-Authentication-Results: i=1; mx.google.com; arc=none",
+            "dkim-signature": "DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed;\r\n        d=gmail.com; s=20251104; t=1778229467; x=1778834267; darn=grueteroffice.com;\r\n        h=to:subject:message-id:date:from:mime-version:from:to:cc:subject\r\n         :date:message-id:reply-to;\r\n        bh=YtId/6ORgfEfAccg3aQsODoP9nay9wGHfejcJkVE3Vs=;\r\n        b=nJHSMzoMpbVKIHzOEKW121gou0H63pn76q+oiAHiAEkcMIKOdPL6gDmnqfpPXu2n8J\r\n         8svNPHf1xIt5/lrJEN51GvRCbQ8YiVD1Ar24JUJ/esb88lwfKz+eRauCYO038LPOliJY\r\n         HrOdIQY9IjLXCXsxJSgVXMZvYm59Zp0Vaf1EktFOe1koa6S6GmtYbc2mJXSLe03Yy3QF\r\n         TIT6luck6jra3HDkCyTbNU0ZmgAuDqGLh5YRsbEdr17xoBdROCoDaqaJvXVZFU6GJcrG\r\n         P85nzsbYWf+tauFqlt3/656nJ8dgF9wtwJIYnjnehu45VIz+3E63QwPPuJ8KYNcgmgo+\r\n         lCAQ==",
+            "x-google-dkim-signature": "X-Google-DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed;\r\n        d=1e100.net; s=20251104; t=1778229467; x=1778834267;\r\n        h=to:subject:message-id:date:from:mime-version:x-gm-gg\r\n         :x-gm-message-state:from:to:cc:subject:date:message-id:reply-to;\r\n        bh=YtId/6ORgfEfAccg3aQsODoP9nay9wGHfejcJkVE3Vs=;\r\n        b=r/HHjXNDfyoXGjmGIt0qvXy+mlZL0wpinJFMSyP0+/Osj0HhbcFhOj2qtob0ESN7Cy\r\n         sKT0GMpdcgN9GqW9hjwWmLQizQxm5s/hCVyVEXXbEiW95U1AEirZCODD6jVdaYeAP/qc\r\n         Ncl+tqXtXVBc5opicv3dqe/xhmcD6NQquI6i02CRLJqz50NDuLuscxqZEXA2tOxdtG4q\r\n         tjecO77LoEh7EAZSN90o6tZcQQmL1E4lh/GCdhZAP6ajM0joNJlObXtaYiI+2THaIxUl\r\n         oWenhMx0cmDO4zjF3wP0PsgdO3EiRBpJvDvzaMlxAPgcfHkjawjKnwi8R+sBN/rrGyqh\r\n         pvSA==",
+            "x-gm-message-state": "X-Gm-Message-State: AOJu0YyUO8yrd0T4vTBMX0vTI9SCCmAvqZJKP7xD0etiBgQF1VtPU6kO\r\n\tpc43NKNLc0P/aU+PceXnwAJLEwYu648lwRsvwRGpCSw7dJigpZBKNlMtsRLfIusBjh7Md2lwJT0\r\n\te2OtDPD3DmRSA/nC1MVqWSupXRSgTDmf+BhbobEb3qw==",
+            "x-gm-gg": "X-Gm-Gg: AeBDievdHzsuuRjwMg9gF4yPSXPMi8vAlPdCkx2IoxZCeqS8a8aoT5mewwRL1jdVFaE\r\n\twFnH0gw3+c07EJFuYTLVdOHlRUXVD2TgoX/A9m48jQyXQTHnlL0nNryjrpoOAH/cS1pHOB91bSF\r\n\tD7oY5RnPf/P5EaM4Q4PmN8n8eEqR9cce4MID7juper1BSROTZvXx2cDakNqHbslpENFaueqT8NG\r\n\t1PlkE79/42WpWn6v4n75GtSNrEYQsEBJOVePIzyUCfYDydFUlyM7+CMELGVfb2Ig9pLTZl3R3mz\r\n\tDZlUmXWn/3hX",
+            "x-received": "X-Received: by 2002:a4a:e913:0:b0:695:818c:e564 with SMTP id\r\n 006d021491bc7-69998cd4cf4mr6891367eaf.26.1778229467452; Fri, 08 May 2026\r\n 01:37:47 -0700 (PDT)",
+            "mime-version": "MIME-Version: 1.0",
+            "from": "From: daytor ramaj <daytorramaj@gmail.com>",
+            "date": "Date: Fri, 8 May 2026 09:37:35 +0100",
+            "x-gm-features": "X-Gm-Features: AVHnY4KR993SfltFjEI2C9Ug2HwMP4cLMX9fdJBQ3MFAd3sjEGUXYLNrM7yz8R8",
+            "message-id": "Message-ID: <CAE38MVzZ3dbUzquwO0Zb0ffZJ7dnv5Ez02Mof2ZAyQoYdO0Xqg@mail.gmail.com>",
+            "subject": "Subject: Availability Request Haute",
+            "to": "To: info@grueteroffice.com",
+            "content-type": "Content-Type: multipart/alternative; boundary=\"000000000000bc990606514a4fad\"",
+            "envelope-to": "Envelope-To: <info@grueteroffice.com>",
+            "ui-inboundreport": "UI-InboundReport: unknown:2;M01:P0:I6BlzZWoQ4I=;0Xf0+O+doQ0pq9PiHG4aAXHMQrr3\r\n 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\r\n YlNSXMJtj6Azrii26hcpifEHmLIGeOKIITei"
+          },
+          "html": "<div dir=\"ltr\"><p>Dear Alix,</p><p>I hope you are well!</p><p>We received a request for the dates 06/JUNE/2026 - 04/JULY/2026. Is Villa Colibri 5 available?</p><p><b>The dates are flexible. The client is looking for an option for 1 or 2 months in June/July. Can you please share the availability for these two months?</b></p><p>The name of the client is Unknown and it’s a group of 2 adults</p><p>Please can you confirm the availability of the villa by clicking on <b>this calendar link</b>? You can also mark any other booked dates by clicking &quot;See full calendar&quot;.</p><p>If the dates are available, please can you confirm the official rate of <b>€ 107,714.29</b> including our 20.00% commission, as well as the following information regarding the services and terms of payment?</p><p><b>Services included</b> Welcome basket Housekeeping service (every other day) Weekly linen change W... maintenance</p><p><b>Extra services</b> Private chef</p></div>\n",
+          "text": "Dear Alix,\n\nI hope you are well!\n\nWe received a request for the dates 06/JUNE/2026 - 04/JULY/2026. Is Villa\nColibri 5 available?\n\n*The dates are flexible. The client is looking for an option for 1 or 2\nmonths in June/July. Can you please share the availability for these two\nmonths?*\n\nThe name of the client is Unknown and it’s a group of 2 adults\n\nPlease can you confirm the availability of the villa by clicking on *this\ncalendar link*? You can also mark any other booked dates by clicking \"See\nfull calendar\".\n\nIf the dates are available, please can you confirm the official rate of *€\n107,714.29* including our 20.00% commission, as well as the following\ninformation regarding the services and terms of payment?\n\n*Services included* Welcome basket Housekeeping service (every other day)\nWeekly linen change W... maintenance\n\n*Extra services* Private chef\n",
+          "textAsHtml": "<p>Dear Alix,</p><p>I hope you are well!</p><p>We received a request for the dates 06/JUNE/2026 - 04/JULY/2026. Is Villa<br/>Colibri 5 available?</p><p>*The dates are flexible. The client is looking for an option for 1 or 2<br/>months in June/July. Can you please share the availability for these two<br/>months?*</p><p>The name of the client is Unknown and it&rsquo;s a group of 2 adults</p><p>Please can you confirm the availability of the villa by clicking on *this<br/>calendar link*? You can also mark any other booked dates by clicking &quot;See<br/>full calendar&quot;.</p><p>If the dates are available, please can you confirm the official rate of *&euro;<br/>107,714.29* including our 20.00% commission, as well as the following<br/>information regarding the services and terms of payment?</p><p>*Services included* Welcome basket Housekeeping service (every other day)<br/>Weekly linen change W... maintenance</p><p>*Extra services* Private chef</p>",
+          "subject": "Availability Request Haute",
+          "date": "2026-05-08T08:37:35.000Z",
+          "to": {
+            "value": [
+              {
+                "address": "info@grueteroffice.com",
+                "name": ""
+              }
+            ],
+            "html": "<span class=\"mp_address_group\"><a href=\"mailto:info@grueteroffice.com\" class=\"mp_address_email\">info@grueteroffice.com</a></span>",
+            "text": "info@grueteroffice.com"
+          },
+          "from": {
+            "value": [
+              {
+                "address": "daytorramaj@gmail.com",
+                "name": "daytor ramaj"
+              }
+            ],
+            "html": "<span class=\"mp_address_group\"><span class=\"mp_address_name\">daytor ramaj</span> &lt;<a href=\"mailto:daytorramaj@gmail.com\" class=\"mp_address_email\">daytorramaj@gmail.com</a>&gt;</span>",
+            "text": "\"daytor ramaj\" <daytorramaj@gmail.com>"
+          },
+          "messageId": "<CAE38MVzZ3dbUzquwO0Zb0ffZJ7dnv5Ez02Mof2ZAyQoYdO0Xqg@mail.gmail.com>",
+          "attributes": {
+            "uid": 10091
+          }
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ],
+    "AI Agent1": [
+      {
+        "json": {
+          "output": "```json\n{\n  \"is_inquiry\": true,\n  \"intent\": \"holiday_stay\",\n  \"property_name\": \"Villa Colibrí\",\n  \"check_in\": \"2026-06-06\",\n  \"check_out\": \"2026-07-04\",\n  \"nights\": 28,\n  \"check_in_dow\": \"Sat\",\n  \"check_out_dow\": \"Sat\",\n  \"guests\": 2,\n  \"is_b2b_agent\": true,\n  \"client_quoted_rate\": 107714.29,\n  \"asked_for_services\": true,\n  \"asked_for_payment_terms\": true,\n  \"asked_for_full_details\": true,\n  \"questions_in_email\": [\n    \"Is Villa Colibri 5 available for 06/JUNE/2026 - 04/JULY/2026?\",\n    \"Can you share availability for June/July 2026 (1-2 months flexible)?\",\n    \"Can you confirm the official rate of €107,714.29 including 20% commission?\",\n    \"What services are included?\",\n    \"What are the payment terms?\"\n  ],\n  \"language\": \"en\",\n  \"confidence\": \"high\",\n  \"missing_fields\": [],\n  \"notes\": \"B2B agent (daytor ramaj) inquiring on behalf of client named 'Unknown'. Initial request is 28 nights (June 6 - July 4, 2026) but dates are flexible for 1-2 months in June/July period. Agent explicitly asks for confirmation of quoted rate (€107,714.29 with 20% commission already included), services included (welcome basket, housekeeping every other day, weekly linen change, maintenance), extra services (private chef), and payment terms. Agent also asks for broader availability across June/July 2026.\"\n}\n```"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ],
+    "Parse Classification1": [
+      {
+        "json": {
+          "subject": "Availability Request Haute",
+          "fromEmail": "daytorramaj@gmail.com",
+          "fromName": "daytor ramaj",
+          "bodyPreview": "Dear Alix,\n\nI hope you are well!\n\nWe received a request for the dates 06/JUNE/2026 - 04/JULY/2026. Is Villa\nColibri 5 available?\n\n*The dates are flexible. The client is looking for an option for 1 or 2\nmonths in June/July. Can you please share the availability for these two\nmonths?*\n\nThe name of the client is Unknown and it’s a group of 2 adults\n\nPlease can you confirm the availability of the villa by clicking on *this\ncalendar link*? You can also mark any other booked dates by clicking \"See\nfull calendar\".\n\nIf the dates are available, please can you confirm the official rate of *€\n107,714.29* including our 20.00% commission, as well as the following\ninformation regarding the services and terms of payment?\n\n*Services included* Welcome basket Housekeeping service (every other day)\nWeekly linen change W... maintenance\n\n*Extra services* Private chef\n",
+          "bodyHtml": "<p>Dear Alix,</p><p>I hope you are well!</p><p>We received a request for the dates 06/JUNE/2026 - 04/JULY/2026. Is Villa<br/>Colibri 5 available?</p><p>*The dates are flexible. The client is looking for an option for 1 or 2<br/>months in June/July. Can you please share the availability for these two<br/>months?*</p><p>The name of the client is Unknown and it&rsquo;s a group of 2 adults</p><p>Please can you confirm the availability of the villa by clicking on *this<br/>calendar link*? You can also mark any other booked dates by clicking &quot;See<br/>full calendar&quot;.</p><p>If the dates are available, please can you confirm the official rate of *&euro;<br/>107,714.29* including our 20.00% commission, as well as the following<br/>information regarding the services and terms of payment?</p><p>*Services included* Welcome basket Housekeeping service (every other day)<br/>Weekly linen change W... maintenance</p><p>*Extra services* Private chef</p>",
+          "internetMessageId": "<CAE38MVzZ3dbUzquwO0Zb0ffZJ7dnv5Ez02Mof2ZAyQoYdO0Xqg@mail.gmail.com>",
+          "conversationId": 10091,
+          "references": "",
+          "receivedDate": "2026-05-08T08:37:35.000Z",
+          "to": "{\"value\":[{\"address\":\"info@grueteroffice.com\",\"name\":\"\"}],\"html\":\"<span class=\\\"mp_address_group\\\"><a href=\\\"mailto:info@grueteroffice.com\\\" class=\\\"mp_address_email\\\">info@grueteroffice.com</a></span>\",\"text\":\"info@grueteroffice.com\"}",
+          "isInquiry": true,
+          "intent": "holiday_stay",
+          "propertyName": "Villa Colibrí",
+          "checkIn": "2026-08-08",
+          "checkOut": "2026-08-15",
+          "nights": 28,
+          "checkInDow": "Sat",
+          "checkOutDow": "Sat",
+          "guests": 2,
+          "isB2bAgent": true,
+          "clientQuotedRate": 107714.29,
+          "askedForServices": true,
+          "askedForPaymentTerms": true,
+          "askedForFullDetails": true,
+          "questionsInEmail": [
+            "Is Villa Colibri 5 available for 06/JUNE/2026 - 04/JULY/2026?",
+            "Can you share availability for June/July 2026 (1-2 months flexible)?",
+            "Can you confirm the official rate of €107,714.29 including 20% commission?",
+            "What services are included?",
+            "What are the payment terms?"
+          ],
+          "language": "en",
+          "confidence": "high",
+          "missingFields": [],
+          "aiNotes": "B2B agent (daytor ramaj) inquiring on behalf of client named 'Unknown'. Initial request is 28 nights (June 6 - July 4, 2026) but dates are flexible for 1-2 months in June/July period. Agent explicitly asks for confirmation of quoted rate (€107,714.29 with 20% commission already included), services included (welcome basket, housekeeping every other day, weekly linen change, maintenance), extra services (private chef), and payment terms. Agent also asks for broader availability across June/July 2026.",
+          "isSameDay": false,
+          "parseFailed": false,
+          "shouldEscalate": false
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Email Trigger (IMAP)": {
+      "main": [
+        [
+          {
+            "node": "Normalize Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Email": {
+      "main": [
+        [
+          {
+            "node": "Already Processed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anthropic Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Inquiry": {
+      "main": [
+        [
+          {
+            "node": "IF — Is Inquiry?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Parse Classification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Already Processed?": {
+      "main": [
+        [
+          {
+            "node": "If2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If2": {
+      "main": [
+        [
+          {
+            "node": "Inquiry Filter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Inquiry Filter": {
+      "main": [
+        [
+          {
+            "node": "Parse Inquiry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF — Is Inquiry?": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Classification": {
+      "main": [
+        [
+          {
+            "node": "IF — Confidence Gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF — Confidence Gate": {
+      "main": [
+        [
+          {
+            "node": "Conversation State Lookup",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Match Property": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Property Lookup": {
+      "main": [
+        [
+          {
+            "node": "Match Property",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Conversation State Lookup": {
+      "main": [
+        [
+          {
+            "node": "Property Lookup",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email Trigger (IMAP)1": {
+      "main": [
+        [
+          {
+            "node": "Normalize Email1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Email1": {
+      "main": [
+        [
+          {
+            "node": "Already Processed?1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent1": {
+      "main": [
+        [
+          {
+            "node": "Parse Classification1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anthropic Chat Model2": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent1",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Inquiry1": {
+      "main": [
+        [
+          {
+            "node": "IF — Is Inquiry?1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Already Processed?1": {
+      "main": [
+        [
+          {
+            "node": "If3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If3": {
+      "main": [
+        [
+          {
+            "node": "Inquiry Filter1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mark As Seen1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Inquiry Filter1": {
+      "main": [
+        [
+          {
+            "node": "Parse Inquiry1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF — Is Inquiry?1": {
+      "main": [
+        [
+          {
+            "node": "AI Agent1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mark As Seen1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Classification1": {
+      "main": [
+        [
+          {
+            "node": "IF — Confidence Gate1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF — Confidence Gate1": {
+      "main": [
+        [
+          {
+            "node": "Conversation State Lookup1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mark As Seen1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Match Property1": {
+      "main": [
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Property Lookup1": {
+      "main": [
+        [
+          {
+            "node": "Match Property1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Conversation State Lookup1": {
+      "main": [
+        [
+          {
+            "node": "Property Lookup1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Compute Routing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [
+          {
+            "node": "Compute Routing1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mark As Seen1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Routing": {
+      "main": [
+        [
+          {
+            "node": "Routing Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Routing1": {
+      "main": [
+        [
+          {
+            "node": "Routing Decision1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Routing Decision": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Fetch iCal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Routing Decision1": {
+      "main": [
+        [
+          {
+            "node": "Mark As Seen1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fetch iCal1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mark As Seen1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch iCal1": {
+      "main": [
+        [
+          {
+            "node": "Parse iCal & Check Availability1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch iCal": {
+      "main": [
+        [
+          {
+            "node": "Parse iCal & Check Availability",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse iCal & Check Availability1": {
+      "main": [
+        [
+          {
+            "node": "IF Available?1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse iCal & Check Availability": {
+      "main": [
+        [
+          {
+            "node": "IF Available?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Available?1": {
+      "main": [
+        [
+          {
+            "node": "Booking Rules Check1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mark As Seen1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Booking Rules Check1": {
+      "main": [
+        [
+          {
+            "node": "IF Rules OK?1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Booking Rules Check": {
+      "main": [
+        [
+          {
+            "node": "IF Rules OK?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Available?": {
+      "main": [
+        [
+          {
+            "node": "Booking Rules Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Rules OK?1": {
+      "main": [
+        [
+          {
+            "node": "Get row(s) in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mark As Seen1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet": {
+      "main": [
+        [
+          {
+            "node": "Calculate Price1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Price1": {
+      "main": [
+        [
+          {
+            "node": "Build Scenario1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Scenario1": {
+      "main": [
+        [
+          {
+            "node": "Fetch Template1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Template1": {
+      "main": [
+        [
+          {
+            "node": "Validate Template Found1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Template Found1": {
+      "main": [
+        [
+          {
+            "node": "IF Template Found1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Template Found1": {
+      "main": [
+        [
+          {
+            "node": "Build Reply Body1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mark As Seen1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Reply Body1": {
+      "main": [
+        [
+          {
+            "node": "Send an Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "c24f7658-2167-4ab8-8630-0369fbb9080f",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "ff7863c0fa9b0c836136c367cfaa45a3744f8d08d347b4b0f4d9991a6cbad761"
+  },
+  "id": "4DdQIfUUqn9XjEPe",
+  "tags": []
+}
